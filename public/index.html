@@ -690,6 +690,16 @@
                     // Atualizar título extraído para preview de destaque
                     tituloExtraido = result.title || '';
                     atualizarPreviewUrl();
+                    // Se houver publi persistida no servidor e ainda não carregamos, buscar para exibir no preview
+                    if (result.publicityAvailable && !publicityCardData) {
+                        try {
+                            const pr = await fetch('/api/get-publicity');
+                            const pj = await pr.json();
+                            if (pj.success && pj.publicityImage) {
+                                publicityCardData = `data:image/jpeg;base64,${pj.publicityImage}`;
+                            }
+                        } catch {}
+                    }
                     
                     showPreview(`data:image/png;base64,${result.cardImage}`, result.caption);
                     showStatus('urlStatus', 'Card gerado com sucesso!', 'success');
@@ -757,29 +767,25 @@
         // Botão de publicar carrossel
         document.getElementById('publishBtn').addEventListener('click', async () => {
             if (!currentCardData) return;
-            
-            if (!publicityCardData) {
-                alert('⚠️ Configure primeiro o card publicitário antes de publicar!');
-                return;
-            }
-            
             toggleLoading(true);
-            
             try {
+                const payload = {
+                    newsCard: currentCardData.cardImage,
+                    caption: currentCardData.caption
+                };
+                if (publicityCardData) {
+                    payload.publicityCard = publicityCardData
+                        .replace('data:image/jpeg;base64,', '')
+                        .replace('data:image/png;base64,', '');
+                }
                 const response = await fetch('/api/publish-carousel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        newsCard: currentCardData.cardImage,
-                        publicityCard: publicityCardData.replace('data:image/jpeg;base64,', ''),
-                        caption: currentCardData.caption
-                    })
+                    body: JSON.stringify(payload)
                 });
-                
                 const result = await response.json();
-                
                 if (result.success) {
-                    alert('✅ Carrossel publicado no Instagram com sucesso!\\n\\nPost ID: ' + result.postId);
+                    alert('✅ Carrossel publicado no Instagram com sucesso!\n\nPost ID: ' + result.postId);
                 } else {
                     alert('❌ Erro ao publicar: ' + result.error);
                 }
