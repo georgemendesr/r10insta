@@ -325,7 +325,8 @@
                         <h4 style="color: #4f46e5; margin-bottom: 15px;">✏️ Editar e Regerar Card</h4>
                         
                         <label class="form-label">Título</label>
-                        <textarea id="manualTitleInput" class="form-input form-textarea" rows="2" placeholder="Edite o título antes de regerar o card"></textarea>
+                        <textarea id="manualTitleInput" class="form-input form-textarea" rows="2" placeholder="Edite o título antes de regerar o card" maxlength="70"></textarea>
+                        <small id="manualTitleCounter" style="display:block; margin-top:6px; color:#666;">0/70 caracteres</small>
                         
                         <div style="margin-top:10px;">
                             <label class="form-label">Chapéu Personalizado</label>
@@ -400,6 +401,11 @@
                     </div>
 
                     <div id="previewCaption" class="preview-caption"></div>
+                    <div style="margin-top:8px;">
+                        <label class="form-label" style="margin-bottom:6px;">Editar legenda antes de publicar</label>
+                        <textarea id="captionEditor" class="form-input form-textarea" rows="5" placeholder="Edite a legenda aqui se quiser ajustar algo"></textarea>
+                        <small style="color:#666">A legenda do preview é preenchida automaticamente; o que for salvo aqui é o que será publicado.</small>
+                    </div>
                     <button id="publishBtn" class="btn btn-success">
                         <i class="fab fa-instagram"></i>
                         Publicar Carrossel no Instagram
@@ -569,6 +575,7 @@
         function showPreview(imageUrl, caption) {
             document.getElementById('previewImage').src = imageUrl;
             document.getElementById('previewCaption').textContent = caption;
+            document.getElementById('captionEditor').value = caption;
             
             // Mostrar card publicitário se estiver configurado
             const publicityPreview = document.getElementById('publicityCardPreview');
@@ -680,7 +687,13 @@
                     
                     // habilitar bloco de edição manual para regerar
                     document.getElementById('manualTitleBlock').style.display = 'block';
-                    document.getElementById('manualTitleInput').value = result.title || '';
+                    // Preencher título manual (clamp 70)
+                    const mtEl = document.getElementById('manualTitleInput');
+                    const maxLen = 70;
+                    const filled = (result.title || '').substring(0, maxLen);
+                    mtEl.value = filled;
+                    const cnt = document.getElementById('manualTitleCounter');
+                    if (cnt) cnt.textContent = `${filled.length}/${maxLen} caracteres`;
                     
                     // Preencher chapéu extraído se disponível
                     if (result.chapeu) {
@@ -717,7 +730,8 @@
         // Regerar card com título manual (usando imagem extraída)
         document.getElementById('regenWithManualBtn').addEventListener('click', async () => {
             if (!currentCardData) return;
-            const manualTitle = (document.getElementById('manualTitleInput').value || '').trim();
+            const maxLen = 70;
+            const manualTitle = (document.getElementById('manualTitleInput').value || '').substring(0, maxLen).trim();
             if (!manualTitle) {
                 alert('Digite o título para regerar o card');
                 return;
@@ -771,7 +785,7 @@
             try {
                 const payload = {
                     newsCard: currentCardData.cardImage,
-                    caption: currentCardData.caption
+                    caption: (document.getElementById('captionEditor').value || currentCardData.caption)
                 };
                 if (publicityCardData) {
                     payload.publicityCard = publicityCardData
@@ -802,6 +816,16 @@
                 const statusId = 'urlStatus';
                 document.getElementById(statusId).style.display = 'none';
             });
+        });
+
+        // Atualizar contador ao digitar no título manual
+        document.getElementById('manualTitleInput').addEventListener('input', (e) => {
+            const maxLen = 70;
+            if (e.target.value.length > maxLen) {
+                e.target.value = e.target.value.substring(0, maxLen);
+            }
+            const cnt = document.getElementById('manualTitleCounter');
+            if (cnt) cnt.textContent = `${e.target.value.length}/${maxLen} caracteres`;
         });
 
         // Carregar card publicitário salvo ao inicializar
