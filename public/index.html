@@ -251,6 +251,8 @@
             font-size: 0.9rem;
             line-height: 1.5;
             color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
             margin-bottom: 20px;
         }
 
@@ -706,7 +708,6 @@
         document.getElementById('regenWithManualBtn').addEventListener('click', async () => {
             if (!currentCardData) return;
             const manualTitle = (document.getElementById('manualTitleInput').value || '').trim();
-            const useManual = document.getElementById('useManualTitleUrl').checked;
             if (!manualTitle) {
                 alert('Digite o título para regerar o card');
                 return;
