@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R10 Piauí - Sistema de Automação Instagram</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header com logo */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .logo img {
+            height: 80px;
+            width: auto;
+        }
+
+        .system-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #333;
+            margin-top: 10px;
+        }
+
+        .system-subtitle {
+            color: #666;
+            font-size: 1rem;
+            margin-top: 5px;
+        }
+
+        /* Cards principais */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .card-icon.url {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+
+        .card-icon.upload {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        /* Formulários */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e6ed;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: 'Poppins', sans-serif;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* Botões */
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(86, 171, 47, 0.3);
+        }
+
+        /* Status e Loading */
+        .status {
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 15px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status.success {
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+            color: white;
+        }
+
+        .status.error {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            color: white;
+        }
+
+        .status.info {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Preview do card */
+        .card-preview {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .preview-caption {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: left;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .logo-title {
+                font-size: 2rem;
+                text-align: center;
+            }
+            
+            .system-title {
+                font-size: 1.4rem;
+            }
+        }
+
+        /* Animações */
+        .fade-in {
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header com logo -->
+        <div class="header">
+            <div class="logo">
+                <img src="/logo-r10-piaui.png" alt="R10 Piauí" style="height: 80px;">
+            </div>
+            <div class="system-title">SISTEMA DE AUTOMAÇÃO INSTAGRAM</div>
+            <div class="system-subtitle">Geração automática de cards e publicação no Instagram</div>
+            
+            <!-- Botão discreto para configuração -->
+            <div class="config-access" style="position: absolute; top: 10px; right: 10px;">
+                <button id="configBtn" style="background: none; border: none; color: #ccc; font-size: 12px; cursor: pointer; opacity: 0.3;" title="Configurações">⚙️</button>
+            </div>
+        </div>
+
+    <!-- Grid principal -->
+    <div class="main-grid">
+
+            <!-- Card 2: URL -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon url">
+                        <i class="fas fa-link"></i>
+                    </div>
+                    <div class="card-title">Processar URL</div>
+                </div>
+                
+                <form id="urlForm">
+                    <div class="form-group">
+                        <label class="form-label">URL da Notícia</label>
+                        <input type="url" id="urlInput" class="form-input" placeholder="https://r10.com.br/..." required>
+                    </div>
+                    <div id="manualTitleBlock" class="form-group" style="display:none; margin-top:15px; border-top: 2px solid #e5e7eb; padding-top: 15px;">
+                        <h4 style="color: #4f46e5; margin-bottom: 15px;">✏️ Editar e Regerar Card</h4>
+                        
+                        <label class="form-label">Título</label>
+                        <textarea id="manualTitleInput" class="form-input form-textarea" rows="2" placeholder="Edite o título antes de regerar o card"></textarea>
+                        
+                        <div style="margin-top:10px;">
+                            <label class="form-label">Chapéu Personalizado</label>
+                            <input type="text" id="urlChapeuInput" class="form-input" placeholder="Ex: URGENTE, POLÍTICA, DESTAQUE..." maxlength="15">
+                            <small style="color:#666">Deixe vazio para manter o gerado automaticamente</small>
+                        </div>
+
+                        <div style="margin-top:10px;">
+                            <label class="form-label">Destaque Personalizado</label>
+                            <div id="urlPreviewPalavras" style="background: #f5f5f5; padding: 10px; border-radius: 5px; font-size: 14px; margin-bottom: 8px;"></div>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <label style="font-size: 14px;">Destacar da palavra</label>
+                                <input type="number" id="urlDestaqueInicio" class="form-input" style="width: 60px;" min="0" placeholder="0">
+                                <label style="font-size: 14px;">até a palavra</label>
+                                <input type="number" id="urlDestaqueFim" class="form-input" style="width: 60px;" min="0" placeholder="1">
+                            </div>
+                            <small style="color:#666">Deixe vazio para manter o destaque automático</small>
+                        </div>
+                        
+                        <div style="margin-top:15px; display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" id="useManualTitleUrl" />
+                            <label for="useManualTitleUrl" style="color:#333;">Usar este título (sem IA)</label>
+                            <button id="regenWithManualBtn" type="button" class="btn btn-primary" style="margin-left:auto;">
+                                <i class="fas fa-redo"></i> Regerar Card
+                            </button>
+                        </div>
+                        <small style="color:#666">Quando marcado, o card é gerado exatamente com este título, sem otimização de IA</small>
+                    </div>
+                        <small style="color:#666">Quando marcado, o card é gerado exatamente com este título, sem otimização de IA</small>
+                    <div class="form-group">
+                        <label class="form-label">Categoria (para cor da barra)</label>
+                        <select id="urlCategoryInput" class="form-input" required>
+                            <option value="">Selecione uma categoria</option>
+                            <option value="polícia">Polícia</option>
+                            <option value="política">Política</option>
+                            <option value="esporte">Esporte</option>
+                            <option value="entretenimento">Entretenimento</option>
+                            <option value="geral">Geral</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-magic"></i>
+                        Gerar Card Automaticamente
+                    </button>
+                </form>
+                
+                <div id="urlStatus" class="status"></div>
+            </div>
+
+            <!-- Card 3: Upload Manual -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon upload">
+                        <i class="fas fa-upload"></i>
+                    </div>
+                    <div class="card-title">Upload Manual</div>
+                </div>
+                
+                <form id="uploadForm">
+                    <div class="form-group">
+                        <label class="form-label">Título</label>
+                        <input type="text" id="titleInput" class="form-input" placeholder="Título da notícia" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Categoria (para cor da barra)</label>
+                        <select id="categoryInput" class="form-input" required>
+                            <option value="">Selecione uma categoria</option>
+                            <option value="polícia">Polícia</option>
+                            <option value="política">Política</option>
+                            <option value="esporte">Esporte</option>
+                            <option value="entretenimento">Entretenimento</option>
+                            <option value="geral">Geral</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Chapéu Personalizado (Opcional)</label>
+                        <input type="text" id="manualChapeuInput" class="form-input" placeholder="Ex: URGENTE, POLÍTICA, DESTAQUE..." maxlength="15">
+                        <small style="color:#666">Deixe vazio para gerar automaticamente pela IA</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Destaque Personalizado (Opcional)</label>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                            <label style="font-size: 14px;">Destacar da palavra</label>
+                            <input type="number" id="manualDestaqueInicio" class="form-input" style="width: 60px;" min="0" placeholder="0">
+                            <label style="font-size: 14px;">até a palavra</label>
+                            <input type="number" id="manualDestaqueFim" class="form-input" style="width: 60px;" min="0" placeholder="1">
+                        </div>
+                        <div id="manualPreviewPalavras" style="color: #666; font-size: 12px; margin-top: 5px;"></div>
+                        <small style="color:#666">Palavras serão numeradas automaticamente do título digitado acima.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Imagem da Notícia</label>
+                        <input type="file" id="imageInput" class="form-input" accept="image/*" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-image"></i>
+                        Gerar Card Manual
+                    </button>
+                </form>
+                
+                <div id="uploadStatus" class="status"></div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="loading">
+            <i class="fas fa-spinner"></i>
+            <div>Processando... Aguarde</div>
+        </div>
+
+        <!-- Preview do carrossel -->
+        <div id="cardPreview" class="card-preview" style="display: none;">
+            <h3 style="margin-bottom: 20px; color: #333;">Preview do Carrossel Instagram</h3>
+            
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <!-- Card da notícia -->
+                <div style="text-align: center;">
+                    <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">1ª Imagem - Card da Notícia</div>
+                    <img id="previewImage" class="preview-image" alt="Card gerado">
+                </div>
+                
+                <!-- Card publicitário -->
+                <div id="publicityCardPreview" style="text-align: center;">
+                    <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">2ª Imagem - Card Publicitário</div>
+                    <img id="previewPublicity" class="preview-image" alt="Card publicitário" style="border: 3px solid #28a745;">
+                </div>
+            </div>
+            
+            <div id="previewCaption" class="preview-caption"></div>
+            <button id="publishBtn" class="btn btn-success">
+                <i class="fab fa-instagram"></i>
+                Publicar Carrossel no Instagram
+            </button>
+        </div>
+    </div>
+
+    <!-- Rodapé com botão discreto de configuração -->
+    <div style="position: fixed; bottom: 12px; right: 14px; z-index: 50;">
+        <button id="openConfigBtn" title="Configuração do card publicitário" style="background: rgba(0,0,0,0.08); color: #666; border: 1px solid rgba(0,0,0,0.08); padding: 8px 10px; border-radius: 10px; font-size: 12px; cursor: pointer; opacity: 0.6;">Configurar publi</button>
+    </div>
+
+    <!-- Modal de configuração (protegido por senha) -->
+    <div id="configModal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 60; align-items: center; justify-content: center;">
+        <div style="background: white; width: 95%; max-width: 560px; border-radius: 16px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.25);">
+            <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 14px;">
+                <div style="font-weight: 700; color: #333;">Configurar Card Publicitário</div>
+                <button id="closeConfigBtn" style="background:none; border:none; font-size: 20px; cursor:pointer; color:#666">×</button>
+            </div>
+
+            <div id="passwordGate" style="margin-bottom: 14px;">
+                <label style="display:block; font-weight:600; color:#444; margin-bottom:6px;">Senha</label>
+                <input id="configPassword" type="password" placeholder="Digite a senha" style="width:100%; padding:12px; border:1px solid #e5e7eb; border-radius:10px; font-family:Poppins, Arial;" />
+                <small style="color:#666">Dica: 6 dígitos</small>
+                <div style="margin-top:10px; display:flex; gap:8px; justify-content:flex-end;">
+                    <button id="unlockBtn" class="btn btn-primary" style="padding:10px 18px;">Desbloquear</button>
+                </div>
+            </div>
+
+            <div id="configContent" style="display:none;">
+                <form id="publicityForm">
+                    <div class="form-group">
+                        <label class="form-label">Imagem Publicitária (será a segunda imagem de todos os carrosseis)</label>
+                        <input type="file" id="publicityInput" class="form-input" accept="image/*">
+                        <small style="color: #666; font-size: 0.9rem;">A imagem será ajustada automaticamente para 1080 x 1350 px</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Salvar Card Publicitário
+                    </button>
+                </form>
+                <div id="publicityStatus" class="status"></div>
+                <div id="publicityPreview" style="display: none; margin-top: 15px; text-align: center;">
+                    <img id="publicityPreviewImage" style="max-width: 200px; max-height: 150px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+                    <div style="margin-top: 10px; color: #28a745; font-weight: 500;">✅ Card publicitário configurado</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Modal + senha 850327
+        const configBtn = document.getElementById('openConfigBtn');
+        const configModal = document.getElementById('configModal');
+        const closeConfigBtn = document.getElementById('closeConfigBtn');
+        const unlockBtn = document.getElementById('unlockBtn');
+        const passwordGate = document.getElementById('passwordGate');
+        const configContent = document.getElementById('configContent');
+
+        function openConfig() { configModal.style.display = 'flex'; }
+        function closeConfig() { configModal.style.display = 'none'; }
+
+        configBtn.addEventListener('click', openConfig);
+        closeConfigBtn.addEventListener('click', closeConfig);
+        configModal.addEventListener('click', (e) => { if (e.target === configModal) closeConfig(); });
+
+        unlockBtn.addEventListener('click', () => {
+            const pass = document.getElementById('configPassword').value;
+            if (pass === '850327') {
+                passwordGate.style.display = 'none';
+                configContent.style.display = 'block';
+            } else {
+                alert('Senha incorreta');
+            }
+        });
+
+        // Função para mostrar preview das palavras numeradas
+        function mostrarPreviewPalavras(texto, previewElementId, inicioId, fimId) {
+            const previewElement = document.getElementById(previewElementId);
+            const inicioElement = document.getElementById(inicioId);
+            const fimElement = document.getElementById(fimId);
+            
+            if (!texto || !texto.trim()) {
+                if (previewElement) previewElement.innerHTML = 'Digite um título para ver as palavras numeradas...';
+                return;
+            }
+            
+            // Limpar pontuação e dividir palavras corretamente
+            const palavras = texto.trim()
+                .replace(/[^\w\sÀ-ÿ]/g, ' ') // Remove pontuação, mantém acentos
+                .split(/\s+/)
+                .filter(palavra => palavra.length > 0);
+            
+            const inicioVal = parseInt(inicioElement?.value) || null;
+            const fimVal = parseInt(fimElement?.value) || null;
+            
+            let preview = palavras.map((palavra, index) => {
+                let estilo = '';
+                if (inicioVal !== null && fimVal !== null && index >= inicioVal && index <= fimVal) {
+                    estilo = 'font-weight: bold; background: #667eea; color: white; padding: 2px 4px; border-radius: 3px;';
+                }
+                return `<span style="${estilo}">${index}. ${palavra}</span>`;
+            }).join(' ');
+            
+            if (previewElement) previewElement.innerHTML = preview;
+        }
+
+        // Monitorar mudanças no título URL para atualizar preview
+        document.getElementById('manualTitleInput').addEventListener('input', function() {
+            mostrarPreviewPalavras(this.value, 'manualPreviewPalavras', 'manualDestaqueInicio', 'manualDestaqueFim');
+        });
+        
+        document.getElementById('manualDestaqueInicio').addEventListener('input', function() {
+            mostrarPreviewPalavras(document.getElementById('manualTitleInput').value, 'manualPreviewPalavras', 'manualDestaqueInicio', 'manualDestaqueFim');
+        });
+        
+        document.getElementById('manualDestaqueFim').addEventListener('input', function() {
+            mostrarPreviewPalavras(document.getElementById('manualTitleInput').value, 'manualPreviewPalavras', 'manualDestaqueInicio', 'manualDestaqueFim');
+        });
+
+        // Para o formulário URL, precisamos aguardar o título ser extraído
+        let tituloExtraido = '';
+        
+        function atualizarPreviewUrl() {
+            mostrarPreviewPalavras(tituloExtraido, 'urlPreviewPalavras', 'urlDestaqueInicio', 'urlDestaqueFim');
+        }
+        
+        document.getElementById('urlDestaqueInicio')?.addEventListener('input', atualizarPreviewUrl);
+        document.getElementById('urlDestaqueFim')?.addEventListener('input', atualizarPreviewUrl);
+
+        // Função para numerar palavras
+        function numerarPalavras(texto) {
+            if (!texto || typeof texto !== 'string') {
+                return 'Texto vazio';
+            }
+            
+            const palavras = texto.trim().split(/\s+/);
+            return palavras.map((palavra, index) => `${index}. ${palavra}`).join(' ');
+        }
+
+        // Variáveis globais
+        let currentCardData = null;
+        let publicityCardData = null; // Armazenar a imagem publicitária
+
+        // Função para mostrar status
+        function showStatus(elementId, message, type = 'info') {
+            const statusEl = document.getElementById(elementId);
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            
+            // Auto-hide após 5 segundos para success/info
+            if (type !== 'error') {
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Função para mostrar/esconder loading
+        function toggleLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Função para mostrar preview
+        function showPreview(imageUrl, caption) {
+            document.getElementById('previewImage').src = imageUrl;
+            document.getElementById('previewCaption').textContent = caption;
+            
+            // Mostrar card publicitário se estiver configurado
+            const publicityPreview = document.getElementById('publicityCardPreview');
+            const previewPublicity = document.getElementById('previewPublicity');
+            
+            if (publicityCardData) {
+                publicityPreview.style.display = 'block';
+                previewPublicity.src = publicityCardData;
+            } else {
+                publicityPreview.style.display = 'none';
+            }
+            
+            document.getElementById('cardPreview').style.display = 'block';
+            document.getElementById('cardPreview').classList.add('fade-in');
+        }
+
+        // Form de configuração de publicidade
+        document.getElementById('publicityForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const imageFile = document.getElementById('publicityInput').files[0];
+            
+            if (!imageFile) {
+                showStatus('publicityStatus', 'Selecione uma imagem publicitária', 'error');
+                return;
+            }
+            
+            toggleLoading(true);
+            showStatus('publicityStatus', 'Salvando card publicitário...', 'info');
+            
+            const formData = new FormData();
+            formData.append('publicity', imageFile);
+            
+            try {
+                const response = await fetch('/api/upload-publicity', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    publicityCardData = `data:image/jpeg;base64,${result.publicityImage}`;
+                    
+                    // Mostrar preview
+                    const previewImg = document.getElementById('publicityPreviewImage');
+                    previewImg.src = publicityCardData;
+                    document.getElementById('publicityPreview').style.display = 'block';
+                    
+                    showStatus('publicityStatus', 'Card publicitário salvo com sucesso!', 'success');
+                } else {
+                    showStatus('publicityStatus', result.error || 'Erro ao salvar card publicitário', 'error');
+                }
+            } catch (error) {
+                showStatus('publicityStatus', 'Erro de conexão com o servidor', 'error');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+    // Form de URL
+        document.getElementById('urlForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('urlInput').value;
+            const categoria = document.getElementById('urlCategoryInput').value;
+            const chapeuPersonalizado = document.getElementById('urlChapeuInput').value.trim();
+            const destaqueInicio = document.getElementById('urlDestaqueInicio').value;
+            const destaqueFim = document.getElementById('urlDestaqueFim').value;
+            
+            if (!categoria) {
+                alert('Por favor, selecione uma categoria');
+                return;
+            }
+            
+            toggleLoading(true);
+            showStatus('urlStatus', 'Extraindo dados da URL...', 'info');
+            
+            try {
+                // Preparar destaque baseado em índices
+                let destaquePersonalizado = null;
+                if (destaqueInicio !== '' && destaqueFim !== '') {
+                    destaquePersonalizado = { inicio: parseInt(destaqueInicio), fim: parseInt(destaqueFim) };
+                }
+                
+                console.log('Enviando dados:', { url, categoria, chapeuPersonalizado, destaquePersonalizado });
+                
+                const response = await fetch('/api/process-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        url, 
+                        categoria,
+                        chapeuPersonalizado: chapeuPersonalizado || null,
+                        destaquePersonalizado
+                    })
+                });
+                
+                console.log('Resposta status:', response.status);
+                const result = await response.json();
+                console.log('Resultado:', result);
+                
+                if (result.success) {
+                    currentCardData = result;
+                    
+                    // habilitar bloco de edição manual para regerar
+                    document.getElementById('manualTitleBlock').style.display = 'block';
+                    document.getElementById('manualTitleInput').value = result.title || '';
+                    
+                    // Preencher chapéu extraído se disponível
+                    if (result.chapeu) {
+                        document.getElementById('urlChapeuInput').value = result.chapeu;
+                    }
+                    
+                    // Atualizar título extraído para preview de destaque
+                    tituloExtraido = result.title || '';
+                    atualizarPreviewUrl();
+                    
+                    showPreview(`data:image/jpeg;base64,${result.cardImage}`, result.caption);
+                    showStatus('urlStatus', 'Card gerado com sucesso!', 'success');
+                } else {
+                    showStatus('urlStatus', result.error || 'Erro ao processar URL', 'error');
+                }
+            } catch (error) {
+                console.error('Erro no processamento:', error);
+                showStatus('urlStatus', `Erro de conexão: ${error.message}`, 'error');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+        // Regerar card com título manual (usando imagem extraída)
+        document.getElementById('regenWithManualBtn').addEventListener('click', async () => {
+            if (!currentCardData) return;
+            const manualTitle = (document.getElementById('manualTitleInput').value || '').trim();
+            const useManual = document.getElementById('useManualTitleUrl').checked;
+            if (!manualTitle) {
+                alert('Digite o título para regerar o card');
+                return;
+            }
+            toggleLoading(true);
+            showStatus('urlStatus', 'Regerando card...', 'info');
+            try {
+                const formData = new FormData();
+                formData.append('title', manualTitle);
+                formData.append('category', currentCardData.categoria || 'geral');
+                if (currentCardData.extractedImageUrl) {
+                    formData.append('extractedImageUrl', currentCardData.extractedImageUrl);
+                }
+                if (useManual) {
+                    formData.append('useManualTitle', '1');
+                }
+                const resp = await fetch('/api/generate-card', { method: 'POST', body: formData });
+                const out = await resp.json();
+                if (out.success) {
+                    // manter extractedImageUrl para permitir republicar
+                    currentCardData = { ...out, extractedImageUrl: currentCardData.extractedImageUrl, categoria: out.categoria };
+                    showPreview(`data:image/jpeg;base64,${out.cardImage}`, out.caption);
+                    showStatus('urlStatus', 'Card reprocessado com sucesso!', 'success');
+                } else {
+                    showStatus('urlStatus', out.error || 'Erro ao regerar card', 'error');
+                }
+            } catch (err) {
+                showStatus('urlStatus', 'Erro de conexão com o servidor', 'error');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+        // Form de upload
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const title = document.getElementById('titleInput').value;
+            const category = document.getElementById('categoryInput').value;
+            const chapeuPersonalizado = document.getElementById('manualChapeuInput').value.trim();
+            const destaqueInicio = document.getElementById('manualDestaqueInicio').value;
+            const destaqueFim = document.getElementById('manualDestaqueFim').value;
+            const imageFile = document.getElementById('imageInput').files[0];
+            
+            if (!imageFile) {
+                showStatus('uploadStatus', 'Selecione uma imagem', 'error');
+                return;
+            }
+            
+            toggleLoading(true);
+            showStatus('uploadStatus', 'Gerando card...', 'info');
+            
+            // Preparar destaque baseado em índices
+            let destaquePersonalizado = null;
+            if (destaqueInicio !== '' && destaqueFim !== '') {
+                destaquePersonalizado = { inicio: parseInt(destaqueInicio), fim: parseInt(destaqueFim) };
+            }
+            
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('category', category);
+            formData.append('chapeuPersonalizado', chapeuPersonalizado || '');
+            formData.append('destaquePersonalizado', JSON.stringify(destaquePersonalizado));
+            formData.append('image', imageFile);
+            
+            try {
+                const response = await fetch('/api/generate-card', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentCardData = result;
+                    showPreview(`data:image/jpeg;base64,${result.cardImage}`, result.caption);
+                    showStatus('uploadStatus', 'Card gerado com sucesso!', 'success');
+                } else {
+                    showStatus('uploadStatus', result.error || 'Erro ao gerar card', 'error');
+                }
+            } catch (error) {
+                showStatus('uploadStatus', 'Erro de conexão com o servidor', 'error');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+        // Botão de publicar carrossel
+        document.getElementById('publishBtn').addEventListener('click', async () => {
+            if (!currentCardData) return;
+            
+            if (!publicityCardData) {
+                alert('⚠️ Configure primeiro o card publicitário antes de publicar!');
+                return;
+            }
+            
+            toggleLoading(true);
+            
+            try {
+                const response = await fetch('/api/publish-carousel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        newsCard: currentCardData.cardImage,
+                        publicityCard: publicityCardData.replace('data:image/jpeg;base64,', ''),
+                        caption: currentCardData.caption
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ Carrossel publicado no Instagram com sucesso!\\n\\nPost ID: ' + result.postId);
+                } else {
+                    alert('❌ Erro ao publicar: ' + result.error);
+                }
+            } catch (error) {
+                alert('❌ Erro de conexão com o servidor');
+            } finally {
+                toggleLoading(false);
+            }
+        });
+
+        // Auto-clear status quando começar a digitar
+        ['urlInput', 'titleInput'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                const statusId = id === 'urlInput' ? 'urlStatus' : 'uploadStatus';
+                document.getElementById(statusId).style.display = 'none';
+            });
+        });
+
+        // Carregar card publicitário salvo ao inicializar
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/get-publicity');
+                const result = await response.json();
+                
+                if (result.success && result.publicityImage) {
+                    publicityCardData = `data:image/jpeg;base64,${result.publicityImage}`;
+                    
+                    const previewImg = document.getElementById('publicityPreviewImage');
+                    previewImg.src = publicityCardData;
+                    document.getElementById('publicityPreview').style.display = 'block';
+                }
+            } catch (error) {
+                console.log('Nenhum card publicitário salvo');
+            }
+        });
+    </script>
+</body>
+</html>
