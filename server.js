@@ -275,177 +275,29 @@ function decodeHtmlEntitiesAll(text = '') {
   return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity).normalize('NFC');
 }
 
-// Função para condensar e finalizar título SEM reticências
-// Função para otimizar título com Groq (sempre tenta IA, mesmo para títulos curtos)
-async function optimizeTitle(title, contextDescription) {
+// Título CONSERVADOR: manter o original e só limpar o básico (sem IA)
+async function optimizeTitle(title) {
   try {
-    console.log(`🤖 Otimizando título: "${title}" (${title.length} caracteres)`);
-    
-    const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: GROQ_CONFIG.MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: `Você é um editor experiente de manchetes jornalísticas para Instagram. Especialista em criar títulos atraentes, informativos e completos para redes sociais.
-
-REGRAS OBRIGATÓRIAS:
-1. MÁXIMO 70 caracteres (rigorosamente!)
-2. Manchete deve ser uma FRASE COMPLETA com sujeito + verbo + complemento
-3. NUNCA use reticências (...) ou cortes tipo "co...", "no..."
-4. NUNCA termine em verbo auxiliar (é, foi, será) ou preposição (de, da, no, na, para, com)
-5. NUNCA termine apenas em particípio sem complemento (nomeado, anunciado, confirmado)
-6. Gramática perfeita e linguagem natural
-7. Preservar informações essenciais: nomes próprios, cargos, localização
-
-DIRETRIZES ESPECIAIS:
-- Para nomeações: "Nome é nomeado secretário" ou "Nome assume Secretaria"
-- Para eventos: "Cidade recebe evento importante" ou "Governador participa de reunião"
-- Para obras: "Prefeitura anuncia nova obra" ou "Cidade ganha nova escola"
-- Lead geográfico quando relevante: "Teresina:" ou "Piripiri:"
-- Priorizar verbos de ação: anuncia, recebe, inaugura, assume, participa, aprova
-
-EXEMPLOS DE QUALIDADE:
-✅ "José Silva é nomeado secretário da Saúde"
-✅ "Prefeitura de Teresina anuncia nova obra"
-✅ "Piripiri: governador visita cidade hoje"
-✅ "Assembleia aprova projeto de lei importante"
-✅ "Ministro chega ao Piauí nesta sexta"
-
-NUNCA FAZER:
-❌ "José Silva" (só o nome)
-❌ "Prefeitura anuncia no..." (corte)
-❌ "Governador é..." (final incompleto)
-❌ "Secretário nomeado" (sem contexto)
-❌ "Obras da prefeitura..." (reticências)`
-          },
-          {
-            role: 'user',
-            content: `Reescreva esta manchete para Instagram mantendo máximo 70 caracteres e sendo COMPLETA.
-
-TÍTULO ORIGINAL: "${title}"
-${contextDescription ? `\nCONTEXTO: ${contextDescription}` : ''}
-
-INSTRUÇÕES FINAIS:
-- Preserve nomes próprios e informações essenciais
-- Use verbos ativos e específicos (anuncia, assume, inaugura, aprova, visita)
-- Se for nomeação: "Nome é nomeado + cargo específico" ou "Nome assume + Secretaria"
-- Se for evento: "Local + verbo + evento" ou "Autoridade + verbo + onde/quando"
-- Se precisar encurtar: priorize manter sujeito + ação + complemento essencial
-- Linguagem jornalística mas natural para redes sociais
-
-RESULTADO DEVE SER: Uma manchete completa, informativa e atrativa em até 70 caracteres.
-
-Responda APENAS com a manchete final (sem aspas, explicações ou comentários).`
-          }
-        ],
-        max_tokens: 100,
-        temperature: 0.1
-      })
-    });
-
-    console.log(`📡 Status da resposta Groq: ${response.status}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log(`📝 Resposta Groq completa:`, JSON.stringify(data, null, 2));
-      
-      const optimizedTitle = data.choices[0]?.message?.content?.trim();
-      if (optimizedTitle && optimizedTitle.length > 0) {
-        const cleanTitle = optimizedTitle.replace(/^["']|["']$/g, '');
-        console.log(`✅ Título otimizado: "${cleanTitle}" (${cleanTitle.length} caracteres)`);
-        // Normalizar para evitar reticências e final incompleto + corrigir terminações com "nomeado"
-    let finalized = finalizeHeadline(cleanTitle, 70);
-    finalized = fixNominationEndings(finalized);
-    finalized = (finalized || '').normalize('NFC');
-    return finalized;
-      } else {
-        console.log('❌ Resposta da Groq vazia ou inválida');
-      }
-    } else {
-      const errorData = await response.json();
-      console.error('❌ Erro na API Groq:', errorData);
-    }
-  } catch (error) {
-    console.error('❌ Erro ao otimizar título:', error.message);
-    console.error('❌ Stack:', error.stack);
+    const cleaned = (decodeHtmlEntitiesAll(title || ''))
+      .replace(/[\u2026]|\.{3,}/g, '') // remove reticências
+      .replace(/\s+/g, ' ')            // espaços múltiplos
+      .trim()
+      .normalize('NFC');
+    console.log(`📰 Título conservado: "${cleaned}"`);
+    return cleaned;
+  } catch (e) {
+    console.log('⚠️ Falha ao normalizar título, retornando original');
+    return (title || '').trim();
   }
-  
-  // Fallback: condensar sem reticências (ainda garantindo final completo)
-  console.log(`🔄 Aplicando fallback - condensação do título original sem reticências`);
-  let finalized = finalizeHeadline(title, 70);
-  finalized = fixNominationEndings(finalized);
-  finalized = (finalized || '').normalize('NFC');
-  console.log(`🔄 Fallback - título final: "${finalized}"`);
-  return finalized;
 }
 
-function finalizeHeadline(text, maxLength) {
-  console.log(`📏 Finalizando título: "${text}" (${text.length} chars) para máximo ${maxLength}, sem reticências`);
+function finalizeHeadline(text) {
   if (!text) return text;
-
-  // 1) Normalizações básicas
-  let t = decodeHtmlEntitiesAll(text || '')
-    .replace(/\u2026|\.\.\./g, '') // remove reticências
+  return decodeHtmlEntitiesAll(text || '')
+    .replace(/[\u2026]|\.{3,}/g, '')
     .replace(/\s+/g, ' ')
-    .trim();
-
-  // 2) Cortar em separadores de subtítulo
-  const splitters = [' — ', ' - ', ' – ', ': '];
-  for (const s of splitters) {
-    if (t.includes(s)) {
-      const [head] = t.split(s);
-      if (head.length >= maxLength * 0.6) {
-        t = head.trim();
-        break;
-      }
-    }
-  }
-
-  // 3) Se ainda maior que o limite, remover termos não essenciais
-  const removalRounds = [
-    /\b(para|por|com|sobre|entre|após|antes|durante)\b/gi,
-    /\b(de|da|do|das|dos|no|na|nos|nas)\b/gi,
-    /\b(é|foi|será|está|estão|foram|seriam|seriam|será|seriam)\b/gi
-  ];
-  for (const rx of removalRounds) {
-    if (t.length <= maxLength) break;
-    t = t.replace(rx, '').replace(/\s+/g, ' ').trim();
-  }
-
-  // 4) Se ainda maior, cortar por palavras até caber, SEM '...'
-  if (t.length > maxLength) {
-    const words = t.split(' ');
-    let acc = '';
-    for (const w of words) {
-      const next = acc ? acc + ' ' + w : w;
-      if (next.length <= maxLength) acc = next; else break;
-    }
-    t = acc.trim();
-  }
-
-  // 5) Evitar finais incompletos (preposições/verbos auxiliares)
-  const badEndings = new Set(['de','da','do','das','dos','no','na','nos','nas','em','por','para','com','é','foi','será','está','são','foram','nomeado','nomeada','anunciado','anunciada','confirmado','confirmada']);
-  let tokens = t.split(' ');
-  while (tokens.length > 1 && badEndings.has(tokens[tokens.length - 1].toLowerCase())) {
-    tokens.pop();
-  }
-  t = tokens.join(' ').trim();
-
-  // 6) Casos específicos
-  // Evitar terminar com "é nomeado" -> normalizar para não ficar solto
-  t = t.replace(/\s+é nomead[oa]$/i, ' nomeado');
-  // Se ainda terminar exatamente em "nomeado/nomeada", retire para não ficar truncado (será tratado por fixNominationEndings)
-  if (/\bnomead[oa]$/i.test(t)) {
-    t = t.replace(/\s*nomead[oa]$/i, '').trim();
-  }
-
-  return t;
+    .trim()
+    .normalize('NFC');
 }
 
 // Correção local para manchetes que terminam em "nomeado/nomeada" sem complemento
@@ -529,7 +381,7 @@ REGRAS:
 }
 
 // Função para gerar legenda com Groq (sem categoria)
-async function generateCaption(title, chapeu) {
+async function generateCaption(title, chapeu, description) {
   try {
     console.log(`🤖 Gerando legenda para: "${title}" (chapéu: ${chapeu})`);
     
@@ -539,25 +391,26 @@ async function generateCaption(title, chapeu) {
         'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
+    body: JSON.stringify({
         model: GROQ_CONFIG.MODEL,
         messages: [{
           role: 'user',
-          content: `Você é especialista em social media jornalística. Crie uma legenda profissional para Instagram baseada nesta notícia:
+      content: `Você é social media jornalístico. Escreva uma legenda clara, enxuta e com ótima leitura no Instagram.
 
+TÍTULO (use na 1ª linha, sem alterar): ${title}
+${description ? `\nDESCRIÇÃO/CONTEXTO: ${description}` : ''}
+
+REGRAS:
+- Não repita o título nem ideias já ditas; nada de redundância
+- 1 linha curta explicando o essencial (baseie-se no contexto se houver)
+- Respeite EXATAMENTE as quebras de linha do modelo abaixo
+- Não inclua categoria/editoria; linguagem profissional e direta
+- Sem aspas nem rótulos como "TÍTULO:" ou "LEGENDA:"
+
+MODELO EXATO (mantenha linhas em branco exatamente assim):
 ${title}
 
-INSTRUÇÕES ESPECÍFICAS:
-1. Comece EXATAMENTE com o título fornecido (não altere nem corte)
-2. Adicione uma linha explicativa curta sobre a notícia
-3. Inclua chamada para ação "📍 Leia a matéria completa em www.r10piaui.com"
-4. Termine com "🔴 R10 Piauí – Dá gosto de ver!"
-5. Adicione hashtags: #R10Piauí #Notícias #Piauí
-
-ESTRUTURA EXATA:
-${title}
-
-[Breve explicação da notícia]
+[uma linha curta, objetiva e humana que contextualiza]
 
 📍 Leia a matéria completa em www.r10piaui.com
 
@@ -565,16 +418,10 @@ ${title}
 
 #R10Piauí #Notícias #Piauí
 
-REGRAS:
-- NÃO mencione categoria/editoria
-- Use linguagem profissional
-- Seja objetivo e claro
-- NÃO adicione "TÍTULO:" nem aspas
-
-Responda apenas com a legenda:`
+Responda SOMENTE com o texto final, sem comentários.`
         }],
         max_tokens: 200,
-        temperature: 0.2
+    temperature: 0.15
       })
     });
 
@@ -590,6 +437,7 @@ Responda apenas com a legenda:`
         caption = caption.replace(/[\u2026]|\.\.\./g, '').replace(/\r/g, '');
         const parts = caption.split('\n').map(s => s.trim()).filter(Boolean);
         if (parts.length > 0) parts[0] = title;
+        // Reconstituir com linhas em branco entre blocos
         caption = parts.join('\n\n');
         console.log('✅ Legenda gerada com sucesso (normalizada)');
         return caption;
@@ -627,7 +475,7 @@ Responda apenas com a legenda:`
   const titleDecodificado = decodeHtmlEntitiesAll(title);
   const fallbackCaption = `${titleDecodificado}
 
-Confira todos os detalhes da notícia.
+Resumo curto e direto do que aconteceu.
 
 📍 Leia a matéria completa em www.r10piaui.com
 
@@ -1733,12 +1581,12 @@ app.post('/api/process-url', async (req, res) => {
     const decodedTitle = decodeHtmlEntitiesGlobal(originalTitle);
 
     // Otimizar título e gerar chapéu/legenda
-  const optimizedTitle = await optimizeTitle(originalTitle, extracted.description);
+  const optimizedTitle = await optimizeTitle(originalTitle);
     // Usar chapéu personalizado ou gerar automaticamente
     const chapeu = chapeuPersonalizado || await generateChapeu(optimizedTitle);
     console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO (sem entidades HTML)
-  const caption = await generateCaption(decodedTitle, chapeu);
+  const caption = await generateCaption(decodedTitle, chapeu, extracted.description || '');
 
     // Baixar a imagem para arquivo temporário
     let tempImagePath;
@@ -1780,7 +1628,8 @@ app.post('/api/process-url', async (req, res) => {
         title: optimizedTitle,
         categoria,
         url,
-        extractedImageUrl: extracted.imageUrl
+        extractedImageUrl: extracted.imageUrl,
+        chapeu
       });
     } catch (genErr) {
       console.error('❌ Erro ao gerar card a partir da URL:', genErr);

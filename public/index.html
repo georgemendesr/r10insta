@@ -344,15 +344,12 @@
                         </div>
                         
                         <div style="margin-top:15px; display:flex; align-items:center; gap:10px;">
-                            <input type="checkbox" id="useManualTitleUrl" />
-                            <label for="useManualTitleUrl" style="color:#333;">Usar este título (sem IA)</label>
                             <button id="regenWithManualBtn" type="button" class="btn btn-primary" style="margin-left:auto;">
                                 <i class="fas fa-redo"></i> Regerar Card
                             </button>
                         </div>
-                        <small style="color:#666">Quando marcado, o card é gerado exatamente com este título, sem otimização de IA</small>
                     </div>
-                        <small style="color:#666">Quando marcado, o card é gerado exatamente com este título, sem otimização de IA</small>
+                        
                     <div class="form-group">
                         <label class="form-label">Categoria (para cor da barra)</label>
                         <select id="urlCategoryInput" class="form-input" required>
@@ -396,6 +393,7 @@
                         <div id="publicityCardPreview" style="text-align: center;">
                             <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">2ª Imagem - Card Publicitário</div>
                             <img id="previewPublicity" class="preview-image" alt="Card publicitário" style="border: 3px solid #28a745;">
+                            <div id="publicityMissingHint" style="display:none; color:#b91c1c; font-weight:600; margin-top:8px;">Configure o card publicitário (botão “Configurar publi”).</div>
                         </div>
                     </div>
 
@@ -573,12 +571,16 @@
             // Mostrar card publicitário se estiver configurado
             const publicityPreview = document.getElementById('publicityCardPreview');
             const previewPublicity = document.getElementById('previewPublicity');
+            const publicityMissingHint = document.getElementById('publicityMissingHint');
             
             if (publicityCardData) {
                 publicityPreview.style.display = 'block';
                 previewPublicity.src = publicityCardData;
+                publicityMissingHint.style.display = 'none';
             } else {
-                publicityPreview.style.display = 'none';
+                publicityPreview.style.display = 'block';
+                previewPublicity.src = '/placeholder.svg';
+                publicityMissingHint.style.display = 'block';
             }
             
             document.getElementById('cardPreview').style.display = 'block';
@@ -687,7 +689,7 @@
                     tituloExtraido = result.title || '';
                     atualizarPreviewUrl();
                     
-                    showPreview(`data:image/jpeg;base64,${result.cardImage}`, result.caption);
+                    showPreview(`data:image/png;base64,${result.cardImage}`, result.caption);
                     showStatus('urlStatus', 'Card gerado com sucesso!', 'success');
                 } else {
                     showStatus('urlStatus', result.error || 'Erro ao processar URL', 'error');
@@ -718,15 +720,13 @@
                 if (currentCardData.extractedImageUrl) {
                     formData.append('extractedImageUrl', currentCardData.extractedImageUrl);
                 }
-                if (useManual) {
-                    formData.append('useManualTitle', '1');
-                }
+                // Sempre regera de forma conservadora no servidor (sem IA) – campo de controle removido
                 const resp = await fetch('/api/generate-card', { method: 'POST', body: formData });
                 const out = await resp.json();
                 if (out.success) {
                     // manter extractedImageUrl para permitir republicar
                     currentCardData = { ...out, extractedImageUrl: currentCardData.extractedImageUrl, categoria: out.categoria };
-                    showPreview(`data:image/jpeg;base64,${out.cardImage}`, out.caption);
+                    showPreview(`data:image/png;base64,${out.cardImage}`, out.caption);
                     showStatus('urlStatus', 'Card reprocessado com sucesso!', 'success');
                 } else {
                     showStatus('urlStatus', out.error || 'Erro ao regerar card', 'error');
