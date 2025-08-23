@@ -712,6 +712,9 @@
                 alert('Digite o título para regerar o card');
                 return;
             }
+            const chapeuManual = (document.getElementById('urlChapeuInput').value || '').trim();
+            const dIniVal = document.getElementById('urlDestaqueInicio').value;
+            const dFimVal = document.getElementById('urlDestaqueFim').value;
             toggleLoading(true);
             showStatus('urlStatus', 'Regerando card...', 'info');
             try {
@@ -720,6 +723,16 @@
                 formData.append('category', currentCardData.categoria || 'geral');
                 if (currentCardData.extractedImageUrl) {
                     formData.append('extractedImageUrl', currentCardData.extractedImageUrl);
+                }
+                if (chapeuManual) {
+                    formData.append('chapeuPersonalizado', chapeuManual);
+                }
+                if (dIniVal !== '' && dFimVal !== '') {
+                    const di = parseInt(dIniVal);
+                    const df = parseInt(dFimVal);
+                    if (!Number.isNaN(di) && !Number.isNaN(df)) {
+                        formData.append('destaquePersonalizado', JSON.stringify({ inicio: di, fim: df }));
+                    }
                 }
                 // Sempre regera de forma conservadora no servidor (sem IA) – campo de controle removido
                 const resp = await fetch('/api/generate-card', { method: 'POST', body: formData });
