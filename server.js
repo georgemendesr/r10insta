@@ -873,8 +873,8 @@ async function generateInstagramCard(data) {
     
     const textX = barX + (barWidth / 2);
     
-  // Subir o título 20px mais perto do chapéu
-  const titleStartY = type === 'story' ? 1060 : 960; // antes: 1080/980
+  // Subir o título mais 20px (total +40px desde o original)
+  const titleStartY = type === 'story' ? 1040 : 940; // antes: 1060/960
   // titleMarginLeft=60 e titleMaxWidth=largura-120 já definidos acima
 
     // 4. 🎯 SISTEMA HÍBRIDO: Sharp + Overlay PNG + Canvas Poppins para texto
