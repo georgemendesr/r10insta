@@ -963,6 +963,24 @@ async function generateInstagramCard(data) {
   }
 }
 
+// Helper: carrega a publi persistida (uploads/publicity-card.jpg) e garante PNG 1080x1350
+async function getPersistentPublicityPngBuffer() {
+  try {
+    const publicityJpgPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+    if (!await fs.pathExists(publicityJpgPath)) return null;
+    const buf = await fs.readFile(publicityJpgPath);
+    // Normalizar para PNG 1080x1350 para casar com o fluxo do carrossel
+    const png = await sharp(buf)
+      .resize(1080, 1350, { fit: 'cover', position: 'center' })
+      .png()
+      .toBuffer();
+    return png;
+  } catch (e) {
+    console.log('⚠️ Falha ao carregar/normalizar publi persistida:', e.message);
+    return null;
+  }
+}
+
 // Função para publicar no Instagram
 async function publishToInstagram(imageBuffer, caption) {
   console.log('📤 Publicando no Instagram...');
@@ -1629,7 +1647,8 @@ app.post('/api/process-url', async (req, res) => {
         categoria,
         url,
         extractedImageUrl: extracted.imageUrl,
-        chapeu
+        chapeu,
+        publicityAvailable: await fs.pathExists(path.join(__dirname, 'uploads', 'publicity-card.jpg'))
       });
     } catch (genErr) {
       console.error('❌ Erro ao gerar card a partir da URL:', genErr);
@@ -1758,7 +1777,8 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       caption,
       title: optimizedTitle,
       categoria: category,
-      url
+      url,
+      publicityAvailable: await fs.pathExists(path.join(__dirname, 'uploads', 'publicity-card.jpg'))
     });
 
   } catch (error) {
@@ -1958,16 +1978,26 @@ app.post('/api/publish-carousel', async (req, res) => {
   try {
     const { newsCard, publicityCard, caption } = req.body;
 
-    if (!newsCard || !publicityCard || !caption) {
+    if (!newsCard || !caption) {
       return res.json({ 
         success: false, 
-        error: 'Card da notícia, card publicitário e legenda são obrigatórios' 
+        error: 'Card da notícia e legenda são obrigatórios' 
       });
     }
 
-    // Converter base64 para buffers
+    // Converter base64 do card da notícia
     const newsBuffer = Buffer.from(newsCard, 'base64');
-    const publicityBuffer = Buffer.from(publicityCard, 'base64');
+
+    // Se não veio publicityCard, usar a publi persistida automaticamente
+    let publicityBuffer;
+    if (publicityCard) {
+      publicityBuffer = Buffer.from(publicityCard, 'base64');
+    } else {
+      publicityBuffer = await getPersistentPublicityPngBuffer();
+      if (!publicityBuffer) {
+        return res.json({ success: false, error: 'Nenhuma publi persistida encontrada. Envie uma em /api/upload-publicity uma única vez.' });
+      }
+    }
     
     // Publicar carrossel no Instagram
     const result = await publishCarouselToInstagram([newsBuffer, publicityBuffer], caption);
