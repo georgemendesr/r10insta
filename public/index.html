@@ -374,63 +374,38 @@
                 <div id="urlStatus" class="status"></div>
             </div>
 
-            <!-- Card 3: Upload Manual -->
+            <!-- Card 2: Preview (substitui a antiga coluna de Upload Manual) -->
             <div class="card">
                 <div class="card-header">
                     <div class="card-icon upload">
-                        <i class="fas fa-upload"></i>
+                        <i class="fas fa-eye"></i>
                     </div>
-                    <div class="card-title">Upload Manual</div>
+                    <div class="card-title">Preview</div>
                 </div>
-                
-                <form id="uploadForm">
-                    <div class="form-group">
-                        <label class="form-label">Título</label>
-                        <input type="text" id="titleInput" class="form-input" placeholder="Título da notícia" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Categoria (para cor da barra)</label>
-                        <select id="categoryInput" class="form-input" required>
-                            <option value="">Selecione uma categoria</option>
-                            <option value="polícia">Polícia</option>
-                            <option value="política">Política</option>
-                            <option value="esporte">Esporte</option>
-                            <option value="entretenimento">Entretenimento</option>
-                            <option value="geral">Geral</option>
-                        </select>
-                    </div>
 
-                    <div class="form-group">
-                        <label class="form-label">Chapéu Personalizado (Opcional)</label>
-                        <input type="text" id="manualChapeuInput" class="form-input" placeholder="Ex: URGENTE, POLÍTICA, DESTAQUE..." maxlength="15">
-                        <small style="color:#666">Deixe vazio para gerar automaticamente pela IA</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Destaque Personalizado (Opcional)</label>
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-                            <label style="font-size: 14px;">Destacar da palavra</label>
-                            <input type="number" id="manualDestaqueInicio" class="form-input" style="width: 60px;" min="0" placeholder="0">
-                            <label style="font-size: 14px;">até a palavra</label>
-                            <input type="number" id="manualDestaqueFim" class="form-input" style="width: 60px;" min="0" placeholder="1">
+                <!-- Preview do carrossel (movido para a segunda coluna) -->
+                <div id="cardPreview" style="display: none;">
+                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px;">
+                        <!-- Card da notícia -->
+                        <div style="text-align: center;">
+                            <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">1ª Imagem - Card da Notícia</div>
+                            <img id="previewImage" class="preview-image" alt="Card gerado">
                         </div>
-                        <div id="manualPreviewPalavras" style="color: #666; font-size: 12px; margin-top: 5px;"></div>
-                        <small style="color:#666">Palavras serão numeradas automaticamente do título digitado acima.</small>
+                        
+                        <!-- Card publicitário -->
+                        <div id="publicityCardPreview" style="text-align: center;">
+                            <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">2ª Imagem - Card Publicitário</div>
+                            <img id="previewPublicity" class="preview-image" alt="Card publicitário" style="border: 3px solid #28a745;">
+                        </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Imagem da Notícia</label>
-                        <input type="file" id="imageInput" class="form-input" accept="image/*" required>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-image"></i>
-                        Gerar Card Manual
+
+                    <div id="previewCaption" class="preview-caption"></div>
+                    <button id="publishBtn" class="btn btn-success">
+                        <i class="fab fa-instagram"></i>
+                        Publicar Carrossel no Instagram
                     </button>
-                </form>
-                
-                <div id="uploadStatus" class="status"></div>
+                </div>
+                <div style="color:#666; font-size: 0.9rem;">O preview aparecerá aqui após gerar o card.</div>
             </div>
         </div>
 
@@ -438,31 +413,6 @@
         <div id="loading" class="loading">
             <i class="fas fa-spinner"></i>
             <div>Processando... Aguarde</div>
-        </div>
-
-        <!-- Preview do carrossel -->
-        <div id="cardPreview" class="card-preview" style="display: none;">
-            <h3 style="margin-bottom: 20px; color: #333;">Preview do Carrossel Instagram</h3>
-            
-            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-                <!-- Card da notícia -->
-                <div style="text-align: center;">
-                    <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">1ª Imagem - Card da Notícia</div>
-                    <img id="previewImage" class="preview-image" alt="Card gerado">
-                </div>
-                
-                <!-- Card publicitário -->
-                <div id="publicityCardPreview" style="text-align: center;">
-                    <div style="color: #667eea; font-weight: 600; margin-bottom: 10px;">2ª Imagem - Card Publicitário</div>
-                    <img id="previewPublicity" class="preview-image" alt="Card publicitário" style="border: 3px solid #28a745;">
-                </div>
-            </div>
-            
-            <div id="previewCaption" class="preview-caption"></div>
-            <button id="publishBtn" class="btn btn-success">
-                <i class="fab fa-instagram"></i>
-                Publicar Carrossel no Instagram
-            </button>
         </div>
     </div>
 
@@ -566,17 +516,9 @@
             if (previewElement) previewElement.innerHTML = preview;
         }
 
-        // Monitorar mudanças no título URL para atualizar preview
+        // Monitorar mudanças no título URL para atualizar preview de palavras (usa os campos de URL)
         document.getElementById('manualTitleInput').addEventListener('input', function() {
-            mostrarPreviewPalavras(this.value, 'manualPreviewPalavras', 'manualDestaqueInicio', 'manualDestaqueFim');
-        });
-        
-        document.getElementById('manualDestaqueInicio').addEventListener('input', function() {
-            mostrarPreviewPalavras(document.getElementById('manualTitleInput').value, 'manualPreviewPalavras', 'manualDestaqueInicio', 'manualDestaqueFim');
-        });
-        
-        document.getElementById('manualDestaqueFim').addEventListener('input', function() {
-            mostrarPreviewPalavras(document.getElementById('manualTitleInput').value, 'manualPreviewPalavras', 'manualDestaqueInicio', 'manualDestaqueFim');
+            mostrarPreviewPalavras(this.value, 'urlPreviewPalavras', 'urlDestaqueInicio', 'urlDestaqueFim');
         });
 
         // Para o formulário URL, precisamos aguardar o título ser extraído
@@ -796,59 +738,7 @@
             }
         });
 
-        // Form de upload
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const title = document.getElementById('titleInput').value;
-            const category = document.getElementById('categoryInput').value;
-            const chapeuPersonalizado = document.getElementById('manualChapeuInput').value.trim();
-            const destaqueInicio = document.getElementById('manualDestaqueInicio').value;
-            const destaqueFim = document.getElementById('manualDestaqueFim').value;
-            const imageFile = document.getElementById('imageInput').files[0];
-            
-            if (!imageFile) {
-                showStatus('uploadStatus', 'Selecione uma imagem', 'error');
-                return;
-            }
-            
-            toggleLoading(true);
-            showStatus('uploadStatus', 'Gerando card...', 'info');
-            
-            // Preparar destaque baseado em índices
-            let destaquePersonalizado = null;
-            if (destaqueInicio !== '' && destaqueFim !== '') {
-                destaquePersonalizado = { inicio: parseInt(destaqueInicio), fim: parseInt(destaqueFim) };
-            }
-            
-            const formData = new FormData();
-            formData.append('title', title);
-            formData.append('category', category);
-            formData.append('chapeuPersonalizado', chapeuPersonalizado || '');
-            formData.append('destaquePersonalizado', JSON.stringify(destaquePersonalizado));
-            formData.append('image', imageFile);
-            
-            try {
-                const response = await fetch('/api/generate-card', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    currentCardData = result;
-                    showPreview(`data:image/jpeg;base64,${result.cardImage}`, result.caption);
-                    showStatus('uploadStatus', 'Card gerado com sucesso!', 'success');
-                } else {
-                    showStatus('uploadStatus', result.error || 'Erro ao gerar card', 'error');
-                }
-            } catch (error) {
-                showStatus('uploadStatus', 'Erro de conexão com o servidor', 'error');
-            } finally {
-                toggleLoading(false);
-            }
-        });
+    // Removido: fluxo de Upload Manual (a UI foi substituída por Preview na segunda coluna)
 
         // Botão de publicar carrossel
         document.getElementById('publishBtn').addEventListener('click', async () => {
@@ -887,9 +777,9 @@
         });
 
         // Auto-clear status quando começar a digitar
-        ['urlInput', 'titleInput'].forEach(id => {
+        ['urlInput'].forEach(id => {
             document.getElementById(id).addEventListener('input', () => {
-                const statusId = id === 'urlInput' ? 'urlStatus' : 'uploadStatus';
+                const statusId = 'urlStatus';
                 document.getElementById(statusId).style.display = 'none';
             });
         });
