@@ -275,19 +275,79 @@ function decodeHtmlEntitiesAll(text = '') {
   return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity).normalize('NFC');
 }
 
-// Título CONSERVADOR: manter o original e só limpar o básico (sem IA)
+// Otimizar título com Groq (ajustes mínimos, até 65 chars) com fallback conservador
 async function optimizeTitle(title) {
-  try {
+  const MAX = 65;
+  const conservative = () => {
     const cleaned = (decodeHtmlEntitiesAll(title || ''))
-      .replace(/[\u2026]|\.{3,}/g, '') // remove reticências
-      .replace(/\s+/g, ' ')            // espaços múltiplos
+      .replace(/[\u2026]|\.{3,}/g, '')
+      .replace(/\s+/g, ' ')
       .trim()
       .normalize('NFC');
-    console.log(`📰 Título conservado: "${cleaned}"`);
+    // clamp suave por palavra
+    if (cleaned.length > MAX) {
+      const slice = cleaned.slice(0, MAX + 1);
+      const cut = slice.lastIndexOf(' ');
+      return (cut > 40 ? slice.slice(0, cut) : cleaned.slice(0, MAX)).trim();
+    }
     return cleaned;
+  };
+
+  try {
+    if (!GROQ_CONFIG.API_KEY) {
+      console.log('🟡 GROQ_API_KEY não configurada — usando fallback conservador');
+      return conservative();
+    }
+
+    const prompt = `Você é editor de manchetes jornalísticas. Reescreva o título abaixo com AJUSTES MÍNIMOS, mantendo sentido, clareza e correção gramatical.
+
+Regras:
+- Até ${MAX} caracteres (contando espaços)
+- Sem reticências, aspas, hashtags, emojis ou ponto final
+- Tom direto, neutro e jornalístico (pt-BR)
+- Preserve nomes próprios e o núcleo semântivo
+
+Título: "${(title || '').replace(/\s+/g,' ').trim()}"
+
+Responda SOMENTE com a manchete final.`;
+
+    const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_CONFIG.MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 120,
+        temperature: 0.2
+      })
+    });
+
+    if (!response.ok) {
+      console.log('⚠️ Groq indisponível para título, usando fallback');
+      return conservative();
+    }
+    const data = await response.json();
+    let out = (data.choices?.[0]?.message?.content || '').trim();
+    out = decodeHtmlEntitiesAll(out)
+      .replace(/[\u2026]|\.{3,}/g, '')
+      .replace(/["“”'’]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .normalize('NFC');
+    if (!out) return conservative();
+    if (out.length > MAX) {
+      const slice = out.slice(0, MAX + 1);
+      const cut = slice.lastIndexOf(' ');
+      out = (cut > 40 ? slice.slice(0, cut) : out.slice(0, MAX)).trim();
+    }
+    console.log(`📰 Título otimizado (Groq): "${out}"`);
+    return out;
   } catch (e) {
-    console.log('⚠️ Falha ao normalizar título, retornando original');
-    return (title || '').trim();
+    console.log('⚠️ Erro na otimização Groq, usando fallback:', e.message);
+    return conservative();
   }
 }
 
@@ -314,11 +374,11 @@ function fixNominationEndings(text) {
   return text;
 }
 
-// Função para gerar chapéu com Groq AI (palavra complementar)
+// Função para gerar chapéu com Groq AI (até 2 palavras, não repetir palavras do título)
 async function generateChapeu(title) {
   try {
     console.log(`🏷️ Gerando chapéu para: "${title}"`);
-    
+
     const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
       method: 'POST',
       headers: {
@@ -329,19 +389,20 @@ async function generateChapeu(title) {
         model: GROQ_CONFIG.MODEL,
         messages: [{
           role: 'user',
-          content: `Você é especialista em comunicação jornalística. Escolha APENAS UMA palavra (chapéu) da lista a seguir que melhor complemente a manchete.
+          content: `Crie um CHAPÉU (rótulo curto) de NO MÁXIMO 2 PALAVRAS em MAIÚSCULAS que complemente a manchete abaixo.
 
-TÍTULO: "${title}"
-
-LISTA (ESCOLHA UMA): DESTAQUE, URGENTE, IMPORTANTE, EXCLUSIVO, ATENÇÃO, AGORA, OFICIAL, CONFIRMADO, NOVIDADE, ÚLTIMA HORA
+TÍTULO: "${(title || '').replace(/\s+/g,' ').trim()}"
 
 REGRAS:
-- NÃO repetir palavra que já esteja no título
-- UMA palavra, MAIÚSCULAS, até 12 caracteres
-- Responda APENAS com a palavra, sem aspas`
+- Não repita nenhuma palavra do título (ignore acentos e caixa)
+- Sem pontuação, aspas, emojis ou hashtags
+- Tom jornalístico e objetivo
+- Até 18 caracteres no total
+
+Responda APENAS com o chapéu final.`
         }],
         max_tokens: 8,
-        temperature: 0.1
+        temperature: 0.2
       })
     });
 
@@ -351,19 +412,28 @@ REGRAS:
       const data = await response.json();
       console.log(`📝 Resposta Groq chapéu:`, JSON.stringify(data, null, 2));
       
-      const ch = data.choices[0]?.message?.content?.trim().toUpperCase();
-      if (ch && ch.length > 0 && ch.length <= 12) {
-        const cleanChapeu = ch.replace(/^["']|["']$/g, '');
-        const allowed = new Set(['DESTAQUE','URGENTE','IMPORTANTE','EXCLUSIVO','ATENÇÃO','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA']);
-        if (allowed.has(cleanChapeu)) {
-          console.log(`✅ Chapéu gerado: "${cleanChapeu}"`);
-          return cleanChapeu;
-        } else {
-          console.log('⚠️ Chapéu fora da lista permitida, aplicando fallback');
-        }
-      } else {
-        console.log('❌ Chapéu inválido ou muito longo');
+      let ch = (data.choices[0]?.message?.content || '')
+        .replace(/["“”'’]/g, '')
+        .toUpperCase()
+        .trim();
+
+      // Sanitizar: até 2 palavras e sem repetir palavras do título
+      const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const titleWords = new Set((title || '')
+        .split(/\s+/)
+        .map(w => normalize(w))
+        .filter(Boolean));
+
+      let parts = ch.split(/\s+/).filter(Boolean).slice(0, 2);
+      parts = parts.filter(p => !titleWords.has(normalize(p)));
+      let cleanChapeu = parts.join(' ').trim();
+      if (cleanChapeu.length > 18) cleanChapeu = cleanChapeu.slice(0, 18).trim();
+
+      if (cleanChapeu) {
+        console.log(`✅ Chapéu gerado: "${cleanChapeu}"`);
+        return cleanChapeu;
       }
+      console.log('⚠️ Chapéu vazio ou repetindo título, aplicando fallback');
     } else {
       const errorData = await response.json();
       console.error('❌ Erro na API Groq (chapéu):', errorData);
@@ -374,7 +444,7 @@ REGRAS:
   }
   
   // Fallback: palavras complementares genéricas
-  const fallbacks = ['DESTAQUE', 'NOTÍCIA', 'IMPORTANTE', 'AGORA', 'NOVO', 'URGENTE', 'ATENÇÃO'];
+  const fallbacks = ['DESTAQUE', 'NOTÍCIA', 'IMPORTANTE', 'ÚLTIMA HORA', 'URGENTE'];
   const selectedFallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
   console.log(`🔄 Fallback chapéu: "${selectedFallback}"`);
   return selectedFallback;
@@ -863,15 +933,10 @@ async function generateInstagramCard(data) {
 
     const lines = wrapWordsToWidth(titleWords, boldStart, boldLength, titleMaxWidth, maxLines);
 
-    // Calcular dimensões da barra baseado no texto da categoria (atualizado 23/08)
-    const categoriaSegura = categoria || 'geral'; // fallback para evitar erros
-  const hatTextWidth = categoriaSegura ? categoriaSegura.length * 30 : 0;
-    const barWidth = Math.max(hatTextWidth + 100, 200);
-    const barHeight = 44;
+  // Parâmetros da barra do chapéu (largura proporcional ao texto)
+  const barHeight = 44;
   const barX = 60;
-    const barY = type === 'story' ? 950 : 878;
-    
-    const textX = barX + (barWidth / 2);
+  const barY = type === 'story' ? 950 : 878;
     
   // Subir o título mais 20px (total +40px desde o original)
   const titleStartY = type === 'story' ? 1040 : 940; // antes: 1060/960
@@ -902,16 +967,19 @@ async function generateInstagramCard(data) {
     if (chapeuFinal) {
       // Barra colorizada (já está no overlay, mas vamos sobrepor com cor correta)
       ctx.fillStyle = barColor;
+      // Definir fonte antes de medir
+      ctx.font = 'bold 30px "Poppins", Arial, sans-serif';
+      const chapeuTexto = decodeHtmlEntitiesAll(chapeuFinal);
+      const metrics = ctx.measureText(chapeuTexto);
+      const barWidth = Math.max(Math.ceil(metrics.width + 32), 160); // padding 16px de cada lado
       ctx.fillRect(barX, barY, barWidth, barHeight);
-      
+
       // Texto do chapéu com POPPINS
       ctx.fillStyle = 'white';
-      ctx.font = 'bold 30px "Poppins", Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      
-  const chapeuTexto = decodeHtmlEntitiesAll(chapeuFinal);
-  ctx.fillText(chapeuTexto, textX, barY + (barHeight / 2));
+      const textX = barX + (barWidth / 2);
+      ctx.fillText(chapeuTexto, textX, barY + (barHeight / 2));
       
       console.log(`✅ Chapéu "${chapeuTexto}" renderizado com Poppins sobre overlay`);
     }
