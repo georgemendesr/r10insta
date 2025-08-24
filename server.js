@@ -275,9 +275,9 @@ function decodeHtmlEntitiesAll(text = '') {
   return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity).normalize('NFC');
 }
 
-// Otimizar título com Groq (ajustes mínimos, até 65 chars) com fallback conservador
+// Otimizar título com Groq (ajustes mínimos, até 60 chars) com fallback conservador
 async function optimizeTitle(title) {
-  const MAX = 65;
+  const MAX = 60;
   const conservative = () => {
     const cleaned = (decodeHtmlEntitiesAll(title || ''))
       .replace(/[\u2026]|\.{3,}/g, '')
@@ -299,7 +299,7 @@ async function optimizeTitle(title) {
       return conservative();
     }
 
-    const prompt = `Você é editor de manchetes jornalísticas. Reescreva o título abaixo com AJUSTES MÍNIMOS, mantendo sentido, clareza e correção gramatical.
+  const prompt = `Você é editor de manchetes jornalísticas (pt-BR). Reescreva o título abaixo com AJUSTES MÍNIMOS, mantendo sentido, clareza e correção gramatical.
 
 Regras:
 - Até ${MAX} caracteres (contando espaços)
@@ -385,7 +385,7 @@ async function generateChapeu(title) {
         'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
+  body: JSON.stringify({
         model: GROQ_CONFIG.MODEL,
         messages: [{
           role: 'user',
@@ -397,9 +397,11 @@ REGRAS:
 - Não repita nenhuma palavra do título (ignore acentos e caixa)
 - Sem pontuação, aspas, emojis ou hashtags
 - Tom jornalístico e objetivo
-- Até 18 caracteres no total
+ - Até 18 caracteres no total
  - Deve ser diretamente relacionado ao tema/assunto/entidade do título (ex.: editoria, órgão, local, tema)
  - PROIBIDO usar termos genéricos: NOTÍCIA, DESTAQUE, URGENTE, IMPORTANTE, AGORA, OFICIAL, CONFIRMADO, NOVIDADE, ÚLTIMA HORA, ALERTA, ATUALIZAÇÃO, VEJA, ENTENDA, AO VIVO, EXCLUSIVO
+ - Português do Brasil. Evite variantes pt-PT (ex.: ATIVO, não ACTIVO)
+ - Evite siglas soltas; se usar sigla, ela deve existir no título e ter 3+ letras
 
 Responda APENAS com o chapéu final.`
         }],
@@ -436,6 +438,14 @@ Responda APENAS com o chapéu final.`
         'NOTÍCIA','NOTICIA','DESTAQUE','URGENTE','IMPORTANTE','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA','ALERTA','ATUALIZAÇÃO','ATUALIZACAO','VEJA','ENTENDA','AO VIVO','EXCLUSIVO'
       ];
       const banned = new Set(bannedRaw.map(normalize));
+      // Mapear pt-PT -> pt-BR e evitar siglas curtas
+      const mapPtPtToPtBr = (s) => s
+        .replace(/\bACTIVO\b/g, 'ATIVO')
+        .replace(/\bACTIVA\b/g, 'ATIVA');
+      cleanChapeu = mapPtPtToPtBr(cleanChapeu).toUpperCase();
+      const titleTokens = new Set((title || '').split(/\s+/).map(w => w.toUpperCase()));
+      const tokens = cleanChapeu.split(/\s+/).filter(Boolean);
+      const hasShortAcronym = tokens.some(t => t.length < 3 && !titleTokens.has(t));
       const deriveChapeuFromTitle = (t) => {
         const nt = normalize(t || '');
         const has = (re) => re.test(nt);
@@ -460,8 +470,8 @@ Responda APENAS com o chapéu final.`
         if (!titleWords.has(normalize('interior'))) return 'INTERIOR';
         return '';
       };
-      const isBanned = banned.has(normalize(cleanChapeu));
-      if (!cleanChapeu || isBanned) {
+  const isBanned = banned.has(normalize(cleanChapeu));
+  if (!cleanChapeu || isBanned || hasShortAcronym) {
         const derived = deriveChapeuFromTitle(title);
         if (derived) cleanChapeu = derived;
       }
@@ -1169,7 +1179,8 @@ async function getDefaultPublicityPngBuffer() {
 // Helper: carrega a publi persistida (uploads/publicity-card.jpg) e garante PNG 1080x1350; senão, usa a padrão
 async function getPersistentPublicityPngBuffer() {
   try {
-    const publicityJpgPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+  const persistDir = process.env.PERSIST_DIR || path.join(__dirname, 'uploads');
+  const publicityJpgPath = path.join(persistDir, 'publicity-card.jpg');
     if (await fs.pathExists(publicityJpgPath)) {
       const buf = await fs.readFile(publicityJpgPath);
       const png = await sharp(buf)
@@ -2009,8 +2020,9 @@ app.post('/api/upload-publicity', upload.single('publicity'), async (req, res) =
       });
     }
 
-    // Redimensionar para 1080x1350 e salvar
-    const publicityPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+  // Redimensionar para 1080x1350 e salvar (usar diretório persistente se configurado)
+  const persistDir = process.env.PERSIST_DIR || path.join(__dirname, 'uploads');
+  const publicityPath = path.join(persistDir, 'publicity-card.jpg');
     const processed = await sharp(req.file.path)
       .resize(1080, 1350, { fit: 'cover', position: 'center' })
       .jpeg({ quality: 92 })
@@ -2043,7 +2055,9 @@ app.post('/api/upload-publicity', upload.single('publicity'), async (req, res) =
 // API para buscar a imagem publicitária salva
 app.get('/api/get-publicity', async (req, res) => {
   try {
-    const publicityPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+    const persistDir = process.env.PERSIST_DIR || path.join(__dirname, 'uploads');
+    const publicityPath = path.join(persistDir, 'publicity-card.jpg');
+    const hasPersisted = await fs.pathExists(path.join(persistDir, 'publicity-card.jpg'));
     if (await fs.pathExists(publicityPath)) {
       const imageBuffer = await fs.readFile(publicityPath);
   return res.json({ success: true, publicityImage: imageBuffer.toString('base64'), source: 'persisted' });
