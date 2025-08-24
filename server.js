@@ -398,6 +398,8 @@ REGRAS:
 - Sem pontuação, aspas, emojis ou hashtags
 - Tom jornalístico e objetivo
 - Até 18 caracteres no total
+ - Deve ser diretamente relacionado ao tema/assunto/entidade do título (ex.: editoria, órgão, local, tema)
+ - PROIBIDO usar termos genéricos: NOTÍCIA, DESTAQUE, URGENTE, IMPORTANTE, AGORA, OFICIAL, CONFIRMADO, NOVIDADE, ÚLTIMA HORA, ALERTA, ATUALIZAÇÃO, VEJA, ENTENDA, AO VIVO, EXCLUSIVO
 
 Responda APENAS com o chapéu final.`
         }],
@@ -429,6 +431,41 @@ Responda APENAS com o chapéu final.`
       let cleanChapeu = parts.join(' ').trim();
       if (cleanChapeu.length > 18) cleanChapeu = cleanChapeu.slice(0, 18).trim();
 
+      // Bloquear termos genéricos e derivar chapéu do título quando necessário
+      const bannedRaw = [
+        'NOTÍCIA','NOTICIA','DESTAQUE','URGENTE','IMPORTANTE','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA','ALERTA','ATUALIZAÇÃO','ATUALIZACAO','VEJA','ENTENDA','AO VIVO','EXCLUSIVO'
+      ];
+      const banned = new Set(bannedRaw.map(normalize));
+      const deriveChapeuFromTitle = (t) => {
+        const nt = normalize(t || '');
+        const has = (re) => re.test(nt);
+        if (has(/pol[ií]cia|homic[ií]dio|assalto|roubo|furto|delegacia|pris[aã]o|flagrante/)) return 'SEGURANÇA';
+        if (has(/just[ií]ça|\bstf\b|\bstj\b|tribunal|ju[ií]z|promotor|\bmpf\b|\bmp\b|defensoria/)) return 'JUDICIÁRIO';
+        if (has(/elei[cç][aã]o|prefeit|vereador|c[aâ]mara|assembleia|governo|congresso|senado|ministro|pol[ií]tica/)) return 'GESTÃO';
+        if (has(/economia|infla[cç][aã]o|imposto|sal[aá]rio|com[eé]rcio|ind[uú]stria|pre[cç]o|d[oó]lar|\bpib\b/)) return 'ECONOMIA';
+        if (has(/sa[uú]de|\bsus\b|hospital|m[eé]dic|vacina|covid|dengue|zika|hepatite|\bupa\b/)) return 'SAÚDE';
+        if (has(/educa[cç][aã]o|escola|professor|aluno|enem|universidade|\bifpi\b|\bufpi\b/)) return 'EDUCAÇÃO';
+        if (has(/esporte|jogo|campeonato|copa|atleta|futebol|placar|partida/)) return 'ESPORTES';
+        if (has(/tr[aâ]nsito|acidente|rodovia|br-?\d+|detran|engarrafamento/)) return 'MOBILIDADE';
+        if (has(/clima|chuva|seca|tempo|calor|frente fria|inmet/)) return 'CLIMA';
+        if (has(/cultura|festival|show|teatro|cinema|museu|exposi[cç][aã]o|livro/)) return 'CULTURA';
+        if (has(/tecnologia|aplicativo|celular|internet|startup|intelig[eê]ncia artificial|\bia\b/)) return 'TECNOLOGIA';
+        if (has(/transporte|[ôo]nibus|metr[ôo]|aeroporto|v[oô]o|ferrovia/)) return 'TRANSPORTE';
+        if (has(/infraestrutura|obra|ponte|asfalto|saneamento/)) return 'INFRAESTRUTURA';
+        if (has(/energia|apag[aã]o|eletricidade|combust[ií]vel|gasolina|diesel/)) return 'ENERGIA';
+        if (has(/turismo|turista|hotel|resort|ponto tur[ií]stico/)) return 'TURISMO';
+        if (!titleWords.has(normalize('Piauí'))) return 'PIAUÍ';
+        if (!titleWords.has(normalize('Teresina'))) return 'CAPITAL';
+        if (!titleWords.has(normalize('Brasil'))) return 'NACIONAL';
+        if (!titleWords.has(normalize('interior'))) return 'INTERIOR';
+        return '';
+      };
+      const isBanned = banned.has(normalize(cleanChapeu));
+      if (!cleanChapeu || isBanned) {
+        const derived = deriveChapeuFromTitle(title);
+        if (derived) cleanChapeu = derived;
+      }
+
       if (cleanChapeu) {
         console.log(`✅ Chapéu gerado: "${cleanChapeu}"`);
         return cleanChapeu;
@@ -443,11 +480,14 @@ Responda APENAS com o chapéu final.`
     console.error('❌ Stack:', error.stack);
   }
   
-  // Fallback: palavras complementares genéricas
-  const fallbacks = ['DESTAQUE', 'NOTÍCIA', 'IMPORTANTE', 'ÚLTIMA HORA', 'URGENTE'];
-  const selectedFallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-  console.log(`🔄 Fallback chapéu: "${selectedFallback}"`);
-  return selectedFallback;
+  // Fallback orientado pelo título (evitar genéricos)
+  const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const titleWords = new Set((title || '').split(/\s+/).map(w => normalize(w)).filter(Boolean));
+  const regionCandidates = ['PIAUÍ','CAPITAL','NACIONAL','INTERIOR'];
+  const region = regionCandidates.find(c => !titleWords.has(normalize(c)));
+  const derived = region || 'ESPECIAL';
+  console.log(`🔄 Fallback chapéu: "${derived}"`);
+  return derived;
 }
 
 // Função para gerar legenda com Groq (sem categoria)
