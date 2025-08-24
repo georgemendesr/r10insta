@@ -963,20 +963,43 @@ async function generateInstagramCard(data) {
   }
 }
 
-// Helper: carrega a publi persistida (uploads/publicity-card.jpg) e garante PNG 1080x1350
-async function getPersistentPublicityPngBuffer() {
+// Helper: carrega a publi padrão do repositório (fixa) e garante PNG 1080x1350
+async function getDefaultPublicityPngBuffer() {
   try {
-    const publicityJpgPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
-    if (!await fs.pathExists(publicityJpgPath)) return null;
-    const buf = await fs.readFile(publicityJpgPath);
-    // Normalizar para PNG 1080x1350 para casar com o fluxo do carrossel
+    // Ordem de fallback: public/publicity-default.jpg -> public/logo-r10-piaui.png
+    let defaultPath = path.join(__dirname, 'public', 'publicity-default.jpg');
+    if (!await fs.pathExists(defaultPath)) {
+      defaultPath = path.join(__dirname, 'public', 'logo-r10-piaui.png');
+      if (!await fs.pathExists(defaultPath)) return null;
+    }
+    const buf = await fs.readFile(defaultPath);
     const png = await sharp(buf)
       .resize(1080, 1350, { fit: 'cover', position: 'center' })
       .png()
       .toBuffer();
     return png;
   } catch (e) {
-    console.log('⚠️ Falha ao carregar/normalizar publi persistida:', e.message);
+    console.log('⚠️ Falha ao carregar/normalizar publi padrão:', e.message);
+    return null;
+  }
+}
+
+// Helper: carrega a publi persistida (uploads/publicity-card.jpg) e garante PNG 1080x1350; senão, usa a padrão
+async function getPersistentPublicityPngBuffer() {
+  try {
+    const publicityJpgPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+    if (await fs.pathExists(publicityJpgPath)) {
+      const buf = await fs.readFile(publicityJpgPath);
+      const png = await sharp(buf)
+        .resize(1080, 1350, { fit: 'cover', position: 'center' })
+        .png()
+        .toBuffer();
+      return png;
+    }
+    // Sem persistida: usar a padrão fixa do repositório
+    return await getDefaultPublicityPngBuffer();
+  } catch (e) {
+    console.log('⚠️ Falha ao carregar/normalizar publi persistida/padrão:', e.message);
     return null;
   }
 }
@@ -1771,6 +1794,7 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       console.log('⚠️ Arquivo temporário já foi removido ou não existe');
     }
 
+    const hasPersisted = await fs.pathExists(path.join(__dirname, 'uploads', 'publicity-card.jpg'));
     res.json({
       success: true,
       cardImage: cardBuffer.toString('base64'),
@@ -1778,7 +1802,8 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       title: optimizedTitle,
       categoria: category,
       url,
-      publicityAvailable: await fs.pathExists(path.join(__dirname, 'uploads', 'publicity-card.jpg'))
+      // Disponibilidade considerada apenas quando houver publi SALVA (persistida)
+      publicityAvailable: hasPersisted
     });
 
   } catch (error) {
@@ -1834,29 +1859,21 @@ app.post('/api/upload-publicity', upload.single('publicity'), async (req, res) =
 });
 
 // API para buscar a imagem publicitária salva
-app.get('/api/get-publicity', (req, res) => {
+app.get('/api/get-publicity', async (req, res) => {
   try {
     const publicityPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
-    
-    if (fs.existsSync(publicityPath)) {
-      const imageBuffer = fs.readFileSync(publicityPath);
-      const base64Image = imageBuffer.toString('base64');
-      
-      res.json({
-        success: true,
-        publicityImage: base64Image
-      });
-    } else {
-      res.json({
-        success: false,
-        error: 'Nenhum card publicitário encontrado'
-      });
+    if (await fs.pathExists(publicityPath)) {
+      const imageBuffer = await fs.readFile(publicityPath);
+  return res.json({ success: true, publicityImage: imageBuffer.toString('base64'), source: 'persisted' });
     }
+    // Sem persistida: tentar padrão fixa
+    const defaultPng = await getDefaultPublicityPngBuffer();
+    if (defaultPng) {
+  return res.json({ success: true, publicityImage: defaultPng.toString('base64'), source: 'default' });
+    }
+    return res.json({ success: false, error: 'Nenhum card publicitário encontrado' });
   } catch (error) {
-    res.json({ 
-      success: false, 
-      error: error.message 
-    });
+    res.json({ success: false, error: error.message });
   }
 });
 
@@ -1988,25 +2005,34 @@ app.post('/api/publish-carousel', async (req, res) => {
     // Converter base64 do card da notícia
     const newsBuffer = Buffer.from(newsCard, 'base64');
 
-    // Se não veio publicityCard, usar a publi persistida automaticamente
-    let publicityBuffer;
+    // Definir publi: aceitar somente quando FORNECIDA no payload ou quando HOUVER PUBLI SALVA (persistida).
+    // Não usaremos a imagem padrão para publicar carrossel; se não houver salva, publica SINGLE.
+    let publicityBuffer = null;
     if (publicityCard) {
       publicityBuffer = Buffer.from(publicityCard, 'base64');
     } else {
-      publicityBuffer = await getPersistentPublicityPngBuffer();
-      if (!publicityBuffer) {
-        return res.json({ success: false, error: 'Nenhuma publi persistida encontrada. Envie uma em /api/upload-publicity uma única vez.' });
+      const persistedPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+      if (await fs.pathExists(persistedPath)) {
+        const buf = await fs.readFile(persistedPath);
+        publicityBuffer = await sharp(buf).resize(1080, 1350, { fit: 'cover', position: 'center' }).png().toBuffer();
       }
     }
-    
-    // Publicar carrossel no Instagram
+
+    if (!publicityBuffer) {
+      // Sem publi salva: publicar SINGLE com o card da notícia
+      const single = await publishToInstagram(newsBuffer, caption);
+      return res.json({ success: true, postId: single.postId, mediaId: single.mediaId, mode: 'single' });
+    }
+
+    // Com publi salva: publicar carrossel
     const result = await publishCarouselToInstagram([newsBuffer, publicityBuffer], caption);
 
     res.json({
       success: true,
       postId: result.postId,
       carouselId: result.carouselId,
-      mediaIds: result.mediaIds
+      mediaIds: result.mediaIds,
+      mode: 'carousel'
     });
 
   } catch (error) {

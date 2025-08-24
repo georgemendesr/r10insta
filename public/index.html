@@ -708,7 +708,8 @@
                         try {
                             const pr = await fetch('/api/get-publicity');
                             const pj = await pr.json();
-                            if (pj.success && pj.publicityImage) {
+                            // Só considerar para payload se a origem for persistida; imagem padrão não entra em carrossel
+                            if (pj.success && pj.publicityImage && pj.source === 'persisted') {
                                 publicityCardData = `data:image/jpeg;base64,${pj.publicityImage}`;
                             }
                         } catch {}
@@ -835,11 +836,14 @@
                 const result = await response.json();
                 
                 if (result.success && result.publicityImage) {
-                    publicityCardData = `data:image/jpeg;base64,${result.publicityImage}`;
-                    
+                    // Mostrar preview se existir qualquer origem, mas só marcar para payload quando for persistida
+                    const imgDataUrl = `data:image/jpeg;base64,${result.publicityImage}`;
                     const previewImg = document.getElementById('publicityPreviewImage');
-                    previewImg.src = publicityCardData;
+                    previewImg.src = imgDataUrl;
                     document.getElementById('publicityPreview').style.display = 'block';
+                    if (result.source === 'persisted') {
+                        publicityCardData = imgDataUrl;
+                    }
                 }
             } catch (error) {
                 console.log('Nenhum card publicitário salvo');
