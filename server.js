@@ -6,7 +6,6 @@ const path = require('path');
 const fs = require('fs-extra');
 const https = require('https');
 const http = require('http');
-const { createCanvas, loadImage, registerFont } = require('canvas');
 
 // Carregar variáveis de ambiente: primeiro da raiz do projeto, depois local (override)
 try {
@@ -22,28 +21,6 @@ try {
   }
 } catch (e) {
   console.log('⚠️ dotenv não carregado (opcional)');
-}
-
-// Registrar fontes Poppins para Canvas
-try {
-  const fontsDir = path.join(__dirname, 'fonts');
-  console.log(`🔍 Procurando fontes em: ${fontsDir}`);
-  
-  const regularPath = path.join(fontsDir, 'Poppins-Regular.ttf');
-  const semiboldPath = path.join(fontsDir, 'Poppins-SemiBold.ttf');
-  const extraboldPath = path.join(fontsDir, 'Poppins-ExtraBold.ttf');
-  
-  if (fs.existsSync(regularPath) && fs.existsSync(semiboldPath) && fs.existsSync(extraboldPath)) {
-    registerFont(regularPath, { family: 'Poppins', weight: '400' });
-    registerFont(semiboldPath, { family: 'Poppins', weight: '600' });
-    registerFont(extraboldPath, { family: 'Poppins', weight: '800' });
-    console.log('✅ Fontes Poppins registradas no Canvas com sucesso!');
-  } else {
-    throw new Error('Arquivos de fonte Poppins não encontrados');
-  }
-} catch (error) {
-  console.error('❌ ERRO ao registrar fontes Poppins:', error.message);
-  console.log('🔄 Canvas vai usar fontes padrão como fallback');
 }
 
 const app = express();
@@ -140,41 +117,67 @@ function makeHttpsRequest(inputUrl, options = {}) {
 
 // Extrator simples de dados de uma página (og:title/description/image)
 async function extractDataFromUrl(pageUrl) {
-  const resp = await makeHttpsRequest(pageUrl, { method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0 R10Publisher' } });
-  if (!resp.ok) throw new Error(`Falha ao carregar URL (status ${resp.status})`);
-  const html = await resp.text();
+  console.log('🔍 Extraindo dados da URL:', pageUrl);
+  
+  try {
+    const resp = await makeHttpsRequest(pageUrl, { method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0 R10Publisher' } });
+    
+    console.log('📊 Status da requisição:', resp.status);
+    
+    if (!resp.ok) {
+      console.error('❌ Falha na requisição HTTP:', resp.status, resp.statusText);
+      throw new Error(`Falha ao carregar URL (status ${resp.status})`);
+    }
+    
+    const html = await resp.text();
+    console.log('📄 HTML recebido com', html.length, 'caracteres');
 
-  function getMeta(content, attr, name) {
-    const rx = new RegExp(`<meta[^>]+${attr}=["']${name}["'][^>]*content=["']([^"']+)["'][^>]*>`, 'i');
-    const m = content.match(rx);
-    return m ? m[1] : '';
-  }
-  function getTag(content, tag) {
-    const rx = new RegExp(`<${tag}[^>]*>([^<]+)</${tag}>`, 'i');
-    const m = content.match(rx);
-    return m ? m[1] : '';
-  }
-  function absoluteUrl(href) {
-    try { return new URL(href, pageUrl).href; } catch { return href; }
-  }
+    function getMeta(content, attr, name) {
+      const rx = new RegExp(`<meta[^>]+${attr}=["']${name}["'][^>]*content=["']([^"']+)["'][^>]*>`, 'i');
+      const m = content.match(rx);
+      return m ? m[1] : '';
+    }
+    function getTag(content, tag) {
+      const rx = new RegExp(`<${tag}[^>]*>([^<]+)</${tag}>`, 'i');
+      const m = content.match(rx);
+      return m ? m[1] : '';
+    }
+    function absoluteUrl(href) {
+      try { return new URL(href, pageUrl).href; } catch { return href; }
+    }
 
-  let title = getMeta(html, 'property', 'og:title') || getMeta(html, 'name', 'title') || getTag(html, 'title');
-  const description = getMeta(html, 'property', 'og:description') || getMeta(html, 'name', 'description') || '';
-  let imageUrl = getMeta(html, 'property', 'og:image') || getMeta(html, 'name', 'image') || '';
-  if (imageUrl) imageUrl = absoluteUrl(imageUrl);
+    let title = getMeta(html, 'property', 'og:title') || getMeta(html, 'name', 'title') || getTag(html, 'title');
+    const description = getMeta(html, 'property', 'og:description') || getMeta(html, 'name', 'description') || '';
+    let imageUrl = getMeta(html, 'property', 'og:image') || getMeta(html, 'name', 'image') || '';
+    if (imageUrl) imageUrl = absoluteUrl(imageUrl);
 
-  // Fallback rudimentar para h1
-  if (!title) {
-    const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-    if (h1) title = h1[1].replace(/<[^>]+>/g, '').trim();
+    // Fallback rudimentar para h1
+    if (!title) {
+      const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      if (h1) title = h1[1].replace(/<[^>]+>/g, '').trim();
+    }
+
+    const result = {
+      title: (title || '').replace(/\s+/g, ' ').trim(),
+      description: (description || '').trim(),
+      imageUrl: imageUrl || '',
+      originalUrl: pageUrl
+    };
+    
+    console.log('📋 Dados extraídos:', {
+      title: result.title,
+      description: result.description.substring(0, 100) + '...',
+      imageUrl: result.imageUrl,
+      originalUrl: result.originalUrl
+    });
+    
+    return result;
+    
+  } catch (error) {
+    console.error('❌ Erro na extração de dados:', error.message);
+    console.error('📍 Stack trace:', error.stack);
+    throw error;
   }
-
-  return {
-    title: (title || '').replace(/\s+/g, ' ').trim(),
-    description: (description || '').trim(),
-    imageUrl: imageUrl || '',
-    originalUrl: pageUrl
-  };
 }
 
 // Carregar fontes na inicialização do servidor - COM FALLBACK ROBUSTO
@@ -256,48 +259,171 @@ const GROQ_CONFIG = {
   API_URL: 'https://api.groq.com/openai/v1/chat/completions'
 };
 
-// Utilitário global simples para decodificar entidades HTML comuns
-function decodeHtmlEntitiesAll(text = '') {
-  if (!text || typeof text !== 'string') return text || '';
-  const entities = {
-    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ',
-    '&aacute;': 'á', '&Aacute;': 'Á', '&agrave;': 'à', '&Agrave;': 'À',
-    '&acirc;': 'â', '&Acirc;': 'Â', '&atilde;': 'ã', '&Atilde;': 'Ã',
-    '&auml;': 'ä', '&Auml;': 'Ä', '&eacute;': 'é', '&Eacute;': 'É',
-    '&egrave;': 'è', '&Egrave;': 'È', '&ecirc;': 'ê', '&Ecirc;': 'Ê',
-    '&iacute;': 'í', '&Iacute;': 'Í', '&igrave;': 'ì', '&Igrave;': 'Ì',
-    '&icirc;': 'î', '&Icirc;': 'Î', '&oacute;': 'ó', '&Oacute;': 'Ó',
-    '&ograve;': 'ò', '&Ograve;': 'Ò', '&ocirc;': 'ô', '&Ocirc;': 'Ô',
-    '&otilde;': 'õ', '&Otilde;': 'Õ', '&uacute;': 'ú', '&Uacute;': 'Ú',
-    '&ugrave;': 'ù', '&Ugrave;': 'Ù', '&ucirc;': 'û', '&Ucirc;': 'Û',
-    '&ccedil;': 'ç', '&Ccedil;': 'Ç'
-  };
-  return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity).normalize('NFC');
-}
+// Diretório persistente para armazenar a publi (sobrevive a redeploys)
+// Em produção (Render), defina PERSIST_DIR para um disco persistente, ex.: "/data/instagram-publisher"
+const PERSIST_DIR = process.env.PERSIST_DIR || path.join(__dirname, 'uploads');
 
-// Título CONSERVADOR: manter o original e só limpar o básico (sem IA)
-async function optimizeTitle(title) {
+// Função para condensar e finalizar título SEM reticências
+// Função para otimizar título com Groq (sempre tenta IA, mesmo para títulos curtos)
+async function optimizeTitle(title, contextDescription) {
   try {
-    const cleaned = (decodeHtmlEntitiesAll(title || ''))
-      .replace(/[\u2026]|\.{3,}/g, '') // remove reticências
-      .replace(/\s+/g, ' ')            // espaços múltiplos
-      .trim()
-      .normalize('NFC');
-    console.log(`📰 Título conservado: "${cleaned}"`);
-    return cleaned;
-  } catch (e) {
-    console.log('⚠️ Falha ao normalizar título, retornando original');
-    return (title || '').trim();
+    console.log(`🤖 Otimizando título: "${title}" (${title.length} caracteres)`);
+    
+    const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: GROQ_CONFIG.MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: `Você é editor de manchetes jornalísticas para Instagram. Produza títulos curtos (até 70 caracteres), completos e informativos.
+Regras inegociáveis:
+- Manchete deve ter sujeito + verbo de ação + complemento (predicado). Não retorne apenas nomes ou sujeito solto.
+- Não use reticências. Não quebre palavras. Gramática perfeita e natural.
+- Não termine em verbo auxiliar ou preposição ("é", "foi", "de", "da", "no", "na").
+- Evite terminar apenas em particípio ("nomeado", "anunciado", "confirmado"). Se ocorrer, COMPLETE o cargo/ação.
+- Se o cargo específico não estiver claro, use forma genérica, mas completa: "assume cargo" ou "é nomeado para cargo".
+- Opção de lead geográfico é válida quando fizer sentido: "Piripiri:" ou "Teresina:".
+Exemplos bons: "Prefeitura de Teresina anuncia nova obra"; "José Amâncio Neto é nomeado coordenador"; "Piripiri: secretária assume pasta da Saúde".
+Exemplos ruins (NÃO FAZER): "José Amâncio Neto"; "Governador do Piauí"; "Prefeitura anuncia no...".`
+          },
+          {
+            role: 'user',
+            content: `Reescreva para uma manchete enxuta e COMPLETA.
+
+TÍTULO ORIGINAL: "${title}"
+${contextDescription ? `\nCONTEXTO (descrição da matéria): ${contextDescription}` : ''}
+
+INSTRUÇÕES OBRIGATÓRIAS:
+- Máximo 70 caracteres (essencial!)
+- Preservar TODAS as informações importantes
+- Linguagem clara e direta
+- NUNCA cortar palavras no meio (proibido "co...", "no...", etc)
+- Manter nomes próprios completos sempre
+- Se necessário, reformular completamente em vez de apenas cortar
+- Gramática perfeita e natural
+ - PROIBIDO usar reticências "..."
+ - O título deve ser uma frase/manchete COMPLETA (com conclusão)
+ - NUNCA terminar em verbo auxiliar ou preposição (ex.: "é", "foi", "de", "da", "no", "na")
+ - Evite terminar com particípios sem complemento (ex.: "nomeado", "anunciado", "confirmado"). Se aparecerem, complete o cargo/ação.
+
+EXEMPLOS ESPECÍFICOS DO QUE FAZER:
+❌ PÉSSIMO: "Advogado Piripiriense José Amâncio Neto é nomeado co..."
+✅ EXCELENTE: "José Amâncio Neto é nomeado coordenador"
+
+❌ PÉSSIMO: "Prefeitura Municipal de Teresina anuncia no..."
+✅ EXCELENTE: "Prefeitura de Teresina anuncia nova obra"
+
+❌ PÉSSIMO: "Governador do Estado do Piauí participa de ev..."
+✅ EXCELENTE: "Governador participa de evento importante"
+
+Responda APENAS com o título reformulado, sem aspas ou explicações. O resultado deve caber sozinho e ter sentido completo.`
+          }
+        ],
+        max_tokens: 100,
+        temperature: 0.1
+      })
+    });
+
+    console.log(`📡 Status da resposta Groq: ${response.status}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`📝 Resposta Groq completa:`, JSON.stringify(data, null, 2));
+      
+      const optimizedTitle = data.choices[0]?.message?.content?.trim();
+      if (optimizedTitle && optimizedTitle.length > 0) {
+        const cleanTitle = optimizedTitle.replace(/^['"]|['"]$/g, '');
+        console.log(`✅ Título otimizado: "${cleanTitle}" (${cleanTitle.length} caracteres)`);
+        // Normalizar para evitar reticências e final incompleto + corrigir terminações com "nomeado"
+        let finalized = finalizeHeadline(cleanTitle, 70);
+        finalized = fixNominationEndings(finalized);
+        return finalized;
+      } else {
+        console.log('❌ Resposta da Groq vazia ou inválida');
+      }
+    } else {
+      const errorData = await response.json();
+      console.error('❌ Erro na API Groq:', errorData);
+    }
+  } catch (error) {
+    console.error('❌ Erro ao otimizar título:', error.message);
+    console.error('❌ Stack:', error.stack);
   }
+  
+  // Fallback: condensar sem reticências (ainda garantindo final completo)
+  console.log(`🔄 Aplicando fallback - condensação do título original sem reticências`);
+  let finalized = finalizeHeadline(title, 70);
+  finalized = fixNominationEndings(finalized);
+  console.log(`🔄 Fallback - título final: "${finalized}"`);
+  return finalized;
 }
 
-function finalizeHeadline(text) {
+function finalizeHeadline(text, maxLength) {
+  console.log(`📏 Finalizando título: "${text}" (${text.length} chars) para máximo ${maxLength}, sem reticências`);
   if (!text) return text;
-  return decodeHtmlEntitiesAll(text || '')
-    .replace(/[\u2026]|\.{3,}/g, '')
+
+  // 1) Normalizações básicas
+  let t = text
+    .replace(/\u2026|\.\.\./g, '') // remove reticências
     .replace(/\s+/g, ' ')
-    .trim()
-    .normalize('NFC');
+    .trim();
+
+  // 2) Cortar em separadores de subtítulo
+  const splitters = [' — ', ' - ', ' – ', ': '];
+  for (const s of splitters) {
+    if (t.includes(s)) {
+      const [head] = t.split(s);
+      if (head.length >= maxLength * 0.6) {
+        t = head.trim();
+        break;
+      }
+    }
+  }
+
+  // 3) Se ainda maior que o limite, remover termos não essenciais
+  const removalRounds = [
+    /\b(para|por|com|sobre|entre|após|antes|durante)\b/gi,
+    /\b(de|da|do|das|dos|no|na|nos|nas)\b/gi,
+    /\b(é|foi|será|está|estão|foram|seriam|seriam|será|seriam)\b/gi
+  ];
+  for (const rx of removalRounds) {
+    if (t.length <= maxLength) break;
+    t = t.replace(rx, '').replace(/\s+/g, ' ').trim();
+  }
+
+  // 4) Se ainda maior, cortar por palavras até caber, SEM '...'
+  if (t.length > maxLength) {
+    const words = t.split(' ');
+    let acc = '';
+    for (const w of words) {
+      const next = acc ? acc + ' ' + w : w;
+      if (next.length <= maxLength) acc = next; else break;
+    }
+    t = acc.trim();
+  }
+
+  // 5) Evitar finais incompletos (preposições/verbos auxiliares)
+  const badEndings = new Set(['de','da','do','das','dos','no','na','nos','nas','em','por','para','com','é','foi','será','está','são','foram','nomeado','nomeada','anunciado','anunciada','confirmado','confirmada']);
+  let tokens = t.split(' ');
+  while (tokens.length > 1 && badEndings.has(tokens[tokens.length - 1].toLowerCase())) {
+    tokens.pop();
+  }
+  t = tokens.join(' ').trim();
+
+  // 6) Casos específicos
+  // Evitar terminar com "é nomeado" -> normalizar para não ficar solto
+  t = t.replace(/\s+é nomead[oa]$/i, ' nomeado');
+  // Se ainda terminar exatamente em "nomeado/nomeada", retire para não ficar truncado (será tratado por fixNominationEndings)
+  if (/\bnomead[oa]$/i.test(t)) {
+    t = t.replace(/\s*nomead[oa]$/i, '').trim();
+  }
+
+  return t;
 }
 
 // Correção local para manchetes que terminam em "nomeado/nomeada" sem complemento
@@ -353,7 +479,7 @@ REGRAS:
       
       const ch = data.choices[0]?.message?.content?.trim().toUpperCase();
       if (ch && ch.length > 0 && ch.length <= 12) {
-        const cleanChapeu = ch.replace(/^["']|["']$/g, '');
+        const cleanChapeu = ch.replace(/^['"]|['"]$/g, '');
         const allowed = new Set(['DESTAQUE','URGENTE','IMPORTANTE','EXCLUSIVO','ATENÇÃO','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA']);
         if (allowed.has(cleanChapeu)) {
           console.log(`✅ Chapéu gerado: "${cleanChapeu}"`);
@@ -381,7 +507,7 @@ REGRAS:
 }
 
 // Função para gerar legenda com Groq (sem categoria)
-async function generateCaption(title, chapeu, description) {
+async function generateCaption(title, chapeu) {
   try {
     console.log(`🤖 Gerando legenda para: "${title}" (chapéu: ${chapeu})`);
     
@@ -391,26 +517,26 @@ async function generateCaption(title, chapeu, description) {
         'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
         'Content-Type': 'application/json'
       },
-    body: JSON.stringify({
+      body: JSON.stringify({
         model: GROQ_CONFIG.MODEL,
         messages: [{
           role: 'user',
-      content: `Você é social media jornalístico. Escreva uma legenda clara, enxuta e com ótima leitura no Instagram.
+          content: `Você é especialista em social media jornalística. Crie uma legenda profissional para Instagram:
 
-TÍTULO (use na 1ª linha, sem alterar): ${title}
-${description ? `\nDESCRIÇÃO/CONTEXTO: ${description}` : ''}
+TÍTULO: "${title}"
+CHAPÉU: "${chapeu}"
 
-REGRAS:
-- Não repita o título nem ideias já ditas; nada de redundância
-- 1 linha curta explicando o essencial (baseie-se no contexto se houver)
-- Respeite EXATAMENTE as quebras de linha do modelo abaixo
-- Não inclua categoria/editoria; linguagem profissional e direta
-- Sem aspas nem rótulos como "TÍTULO:" ou "LEGENDA:"
+INSTRUÇÕES ESPECÍFICAS:
+1. Use o título COMPLETO (não corte nem resuma)
+2. Adicione uma linha explicativa curta sobre a notícia
+3. Inclua chamada para ação "📍 Leia a matéria completa em www.r10piaui.com"
+4. Termine com "🔴 R10 Piauí – Dá gosto de ver!"
+5. Adicione hashtags: #R10Piauí #Notícias #Piauí
 
-MODELO EXATO (mantenha linhas em branco exatamente assim):
-${title}
+ESTRUTURA EXATA:
+[TÍTULO COMPLETO]
 
-[uma linha curta, objetiva e humana que contextualiza]
+[Breve explicação da notícia]
 
 📍 Leia a matéria completa em www.r10piaui.com
 
@@ -418,10 +544,15 @@ ${title}
 
 #R10Piauí #Notícias #Piauí
 
-Responda SOMENTE com o texto final, sem comentários.`
+REGRAS:
+- NÃO mencione categoria/editoria
+- Use linguagem profissional
+- Seja objetivo e claro
+
+Legenda:`
         }],
         max_tokens: 200,
-    temperature: 0.15
+        temperature: 0.2
       })
     });
 
@@ -437,7 +568,6 @@ Responda SOMENTE com o texto final, sem comentários.`
         caption = caption.replace(/[\u2026]|\.\.\./g, '').replace(/\r/g, '');
         const parts = caption.split('\n').map(s => s.trim()).filter(Boolean);
         if (parts.length > 0) parts[0] = title;
-        // Reconstituir com linhas em branco entre blocos
         caption = parts.join('\n\n');
         console.log('✅ Legenda gerada com sucesso (normalizada)');
         return caption;
@@ -457,7 +587,7 @@ Responda SOMENTE com o texto final, sem comentários.`
   // Decodificar entidades HTML no título
   function decodeHtmlEntitiesFallback(text) {
     const entities = {
-      '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ',
+      '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\'', '&nbsp;': ' ',
       '&aacute;': 'á', '&Aacute;': 'Á', '&agrave;': 'à', '&Agrave;': 'À',
       '&acirc;': 'â', '&Acirc;': 'Â', '&atilde;': 'ã', '&Atilde;': 'Ã',
       '&auml;': 'ä', '&Auml;': 'Ä', '&eacute;': 'é', '&Eacute;': 'É',
@@ -472,10 +602,10 @@ Responda SOMENTE com o texto final, sem comentários.`
     return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity);
   }
   
-  const titleDecodificado = decodeHtmlEntitiesAll(title);
+  const titleDecodificado = decodeHtmlEntitiesFallback(title);
   const fallbackCaption = `${titleDecodificado}
 
-Resumo curto e direto do que aconteceu.
+Confira todos os detalhes da notícia.
 
 📍 Leia a matéria completa em www.r10piaui.com
 
@@ -495,30 +625,37 @@ async function generateInstagramCard(data) {
   
   // Usar chapéu fornecido como parâmetro ou gerar automaticamente se não fornecido
   const chapeuFinal = chapeu || await generateChapeu(title);
+  // Sempre renderizar o chapéu em CAIXA ALTA no card
+  const chapeuUpper = (chapeuFinal || '').toString().trim().toUpperCase();
   console.log(`🏷️ Usando chapéu: "${chapeuFinal}"`);
   
   try {
-    // Função auxiliar para escapar XML
-    function escapeXml(unsafe) {
-      return unsafe.replace(/[<>&'"]/g, function (c) {
-        switch (c) {
-          case '<': return '&lt;';
-          case '>': return '&gt;';
-          case '&': return '&amp;';
-          case '\'': return '&apos;';
-          case '"': return '&quot;';
-        }
-      });
+    // Função para limpar e escapar texto para XML de forma segura
+    function escapeXmlText(text) {
+      if (!text) return '';
+      
+      // Primeiro decodifica entidades HTML para caracteres normais
+      const decoded = decodeHtmlEntities(text);
+      
+      // Depois escapa apenas os caracteres XML especiais
+      return decoded
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
     }
 
     // Função para decodificar entidades HTML
     function decodeHtmlEntities(text) {
+      if (!text) return '';
+      
       const entities = {
         '&amp;': '&',
         '&lt;': '<',
         '&gt;': '>',
         '&quot;': '"',
-        '&apos;': "'",
+        '&apos;': '\'',
         '&nbsp;': ' ',
         '&aacute;': 'á', '&Aacute;': 'Á',
         '&agrave;': 'à', '&Agrave;': 'À',
@@ -556,7 +693,7 @@ async function generateInstagramCard(data) {
       'polícia': '#dc2626',          // 🔴 POLÍCIA: Vermelho
       'política': '#2563eb',         // 🔵 POLÍTICA: Azul
       'esporte': '#16a34a',          // 🟢 ESPORTE: Verde
-      'entretenimento': '#9333ea',   // � ENTRETENIMENTO: Roxo
+      'entretenimento': '#9333ea',   // 💜 ENTRETENIMENTO: Roxo
       'geral': '#ea580c',            // 🟠 GERAL: Laranja
       'default': '#ea580c'           // laranja padrão (geral)
     };
@@ -863,96 +1000,63 @@ async function generateInstagramCard(data) {
 
     const lines = wrapWordsToWidth(titleWords, boldStart, boldLength, titleMaxWidth, maxLines);
 
-    // Calcular dimensões da barra baseado no texto da categoria (atualizado 23/08)
-    const categoriaSegura = categoria || 'geral'; // fallback para evitar erros
-  const hatTextWidth = categoriaSegura ? categoriaSegura.length * 30 : 0;
-    const barWidth = Math.max(hatTextWidth + 100, 200);
-    const barHeight = 44;
+  // Calcular dimensões da barra baseado no texto do chapéu (proporcional)
+  const HAT_FONT_SIZE = 33;
+  const CHAR_WIDTH_HAT = 0.58; // heurística média para Poppins 600
+  const hatText = chapeuUpper;
+  const hatTextWidth = hatText ? Math.round(hatText.length * HAT_FONT_SIZE * CHAR_WIDTH_HAT) : 0;
+  const barWidth = Math.max(hatTextWidth + 40, 200); // padding horizontal ~20px por lado
+  const barHeight = 44;
   const barX = 60;
     const barY = type === 'story' ? 950 : 878;
     
     const textX = barX + (barWidth / 2);
     
-  // Subir o título mais 20px (total +40px desde o original)
-  const titleStartY = type === 'story' ? 1040 : 940; // antes: 1060/960
+  const titleStartY = type === 'story' ? 1120 : 1030; // manter baseline do template
   // titleMarginLeft=60 e titleMaxWidth=largura-120 já definidos acima
 
-    // 4. 🎯 SISTEMA HÍBRIDO: Sharp + Overlay PNG + Canvas Poppins para texto
-    console.log('🎨 Usando Sharp + Overlay PNG + Canvas para texto Poppins...');
-    
-    // Primeiro: Compor imagem base + overlay PNG usando Sharp
-    const baseComposite = await sharp(resizedImage)
-      .composite([{
-        input: overlayBuffer,
-        top: 0,
-        left: 0
-      }])
-      .png()
-      .toBuffer();
-
-    // Segundo: Criar Canvas para renderizar APENAS os textos com Poppins
-    const canvas = createCanvas(dimensions.width, dimensions.height);
-    const ctx = canvas.getContext('2d');
-
-    // Carregar imagem base+overlay no Canvas
-    const baseImage = await loadImage(baseComposite);
-    ctx.drawImage(baseImage, 0, 0, dimensions.width, dimensions.height);
-
-    // Chapéu (se existir) - renderizar SOBRE o overlay
-    if (chapeuFinal) {
-      // Barra colorizada (já está no overlay, mas vamos sobrepor com cor correta)
-      ctx.fillStyle = barColor;
-      ctx.fillRect(barX, barY, barWidth, barHeight);
-      
-      // Texto do chapéu com POPPINS
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 30px "Poppins", Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-  const chapeuTexto = decodeHtmlEntitiesAll(chapeuFinal);
-  ctx.fillText(chapeuTexto, textX, barY + (barHeight / 2));
-      
-      console.log(`✅ Chapéu "${chapeuTexto}" renderizado com Poppins sobre overlay`);
-    }
-
-    // Título com destaque e POPPINS - renderizar SOBRE o overlay
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    
-    lines.forEach((line, lineIndex) => {
-      const y = titleStartY + (lineIndex * 85);
-      let currentX = titleMarginLeft;
-      
-      line.forEach((wordObj, wordIndex) => {
-        // Configurar fonte POPPINS baseada no peso
-        const fontWeight = wordObj.isBold ? '800' : '400';
-        ctx.font = `${fontWeight} 76px "Poppins", Arial, sans-serif`;
-        ctx.fillStyle = 'white';
+    // 4. Criar SVG com o texto (título e categoria) - FONTE POPPINS EXATA
+    const textSvg = `
+      <svg width="${dimensions.width}" height="${dimensions.height}" xmlns="http://www.w3.org/2000/svg">
+        ${getEmbeddedFontsCss()}
         
-        // Medir palavra para espaçamento
-        const metrics = ctx.measureText(wordObj.text);
+        ${chapeuUpper ? `
+          <!-- Chapéu com barra colorida por editoria -->
+          <rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" fill="${barColor}" rx="8"/>
+          <text x="${textX}" y="${barY + 29}" fill="white" font-family="Poppins, Arial" font-size="33" font-weight="600" text-anchor="middle">${escapeXmlText(chapeuUpper)}</text>
+        ` : ''}
         
-        // Desenhar palavra
-  ctx.fillText((wordObj.text || '').normalize('NFC'), currentX, y);
-        
-        // Atualizar posição X para próxima palavra
-        currentX += metrics.width;
-        
-        // Adicionar espaço se não for última palavra
-        if (wordIndex < line.length - 1) {
-          const spaceMetrics = ctx.measureText(' ');
-          currentX += spaceMetrics.width;
+        <!-- Título com múltiplas linhas -->
+        ${lines.map((line, lineIndex) => {
+          const y = titleStartY + (lineIndex * 85);
+          
+          const lineText = line.map((word, index) => {
+            const weight = word.isBold ? '800' : '400';
+            const spacing = index > 0 ? ' ' : '';
+            return `${spacing}<tspan font-weight="${weight}">${escapeXmlText(word.text)}</tspan>`;
+          }).join('');
+          
+          return `<text x="${titleMarginLeft}" y="${y}" fill="white" font-family="Poppins, Arial" font-size="76">${lineText}</text>`;
+        }).join('')}
+      </svg>
+    `;
+
+    // 5. Compor as camadas: imagem -> overlay -> texto
+    const finalImage = await sharp(resizedImage)
+      .composite([
+        {
+          input: overlayBuffer,
+          top: 0,
+          left: 0
+        },
+        {
+          input: Buffer.from(textSvg),
+          top: 0,
+          left: 0
         }
-        
-        console.log(`✅ Palavra "${wordObj.text}" renderizada com Poppins ${fontWeight} sobre overlay`);
-      });
-    });
-
-    console.log('🎯 Canvas finalizado: Overlay PNG + Poppins! Convertendo para buffer...');
-    
-    // Converter Canvas final para buffer PNG
-    const finalImage = canvas.toBuffer('image/png');
+      ])
+      .png({ quality: 90 })
+      .toBuffer();
 
     console.log('✅ Card gerado com sucesso');
     return finalImage;
@@ -960,24 +1064,6 @@ async function generateInstagramCard(data) {
   } catch (error) {
     console.error('❌ Erro ao gerar card:', error);
     throw error;
-  }
-}
-
-// Helper: carrega a publi persistida (uploads/publicity-card.jpg) e garante PNG 1080x1350
-async function getPersistentPublicityPngBuffer() {
-  try {
-    const publicityJpgPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
-    if (!await fs.pathExists(publicityJpgPath)) return null;
-    const buf = await fs.readFile(publicityJpgPath);
-    // Normalizar para PNG 1080x1350 para casar com o fluxo do carrossel
-    const png = await sharp(buf)
-      .resize(1080, 1350, { fit: 'cover', position: 'center' })
-      .png()
-      .toBuffer();
-    return png;
-  } catch (e) {
-    console.log('⚠️ Falha ao carregar/normalizar publi persistida:', e.message);
-    return null;
   }
 }
 
@@ -1088,12 +1174,12 @@ app.get('/', (req, res) => {
             padding: 20px;
             background-color: #f5f5f5;
         }
-    .container {
-      background: white;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
         .header {
             text-align: center;
             margin-bottom: 30px;
@@ -1189,14 +1275,14 @@ app.get('/', (req, res) => {
     </style>
 </head>
 <body>
-  <div class="container">
-            <div class="header">
-                <div class="logo">🔴 R10 PIAUÍ</div>
-                <h2>Instagram Publisher</h2>
-                <p>Geração e Publicação Automática de Cards</p>
-            </div>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🔴 R10 PIAUÍ</div>
+            <h2>Instagram Publisher</h2>
+            <p>Geração e Publicação Automática de Cards</p>
+        </div>
 
-            <form id="publishForm" enctype="multipart/form-data">
+        <form id="publishForm" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="newsUrl">Link da Matéria (Extração Automática)</label>
                 <div style="display: flex; gap: 10px;">
@@ -1214,9 +1300,12 @@ app.get('/', (req, res) => {
                 <label for="title">Título da Matéria *</label>
                 <textarea id="title" name="title" placeholder="Digite o título da matéria..." required></textarea>
             </div>
-            <div class="form-group" style="margin-top: -10px;">
-        <small style="color:#666; display:block;">A legenda sempre usa o título completo acima.</small>
-        <small style="color:#666; display:block;">Se você editar o título manualmente, será usado "sem IA" no card.</small>
+      <div class="form-group" style="margin-top: -10px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight: normal; color:#333;">
+          <input type="checkbox" id="useManualTitle" name="useManualTitle" value="1">
+          Usar exatamente este título no card (sem IA)
+        </label>
+        <small style="color:#666;">A legenda sempre usa o título completo acima.</small>
       </div>
 
             <div class="form-group">
@@ -1229,6 +1318,11 @@ app.get('/', (req, res) => {
                 <label for="highlightText">Texto em Destaque (Opcional)</label>
                 <input type="text" id="highlightText" name="highlightText" placeholder="Palavras específicas para destacar em negrito...">
                 <small style="color: #666; margin-top: 5px; display: block;">Se não preenchido, a IA escolherá automaticamente as palavras-chave</small>
+            </div>
+
+            <div class="form-group">
+                <label for="image">Imagem do Card *</label>
+                <input type="file" id="image" name="image" accept="image/*" required>
             </div>
 
             <div class="form-group">
@@ -1245,87 +1339,18 @@ app.get('/', (req, res) => {
             <p>Processando...</p>
         </div>
 
-        <div class="result" id="result"></div>
-  </div>
-    </div>
+        <div class="preview" id="preview">
+            <h3>Preview do Card</h3>
+            <img id="previewImage" src="" alt="Preview">
+            <div id="previewCaption" style="margin-top: 15px; text-align: left; background: #f8f9fa; padding: 15px; border-radius: 5px;"></div>
+        </div>
 
-    <div class="preview" id="preview" style="max-width: 800px; margin: 20px auto;">
-        <h3>Preview do Card Final</h3>
-  <img id="previewImage" src="" alt="Preview">
-  <pre id="previewCaption" style="margin-top: 15px; text-align: left; background: #f8f9fa; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word;"></pre>
+        <div class="result" id="result"></div>
     </div>
 
     <script>
-  let currentCardData = null;
-  let extractedImageUrl = null;
-  let lastExtractedTitle = '';
-
-        // 🎯 CONTADOR DINÂMICO DE PALAVRAS PARA DESTAQUE PERSONALIZADO
-        function atualizarContadorPalavras() {
-            const titleField = document.getElementById('title');
-            const highlightField = document.getElementById('highlightText');
-            if (!titleField || !highlightField) return;
-            
-            const title = titleField.value.trim();
-            const words = title.split(/\s+/).filter(w => w.length > 0);
-            const totalWords = words.length;
-            
-      // Atualizar contador de caracteres no próprio label abaixo do field
-      const counterId = 'titleCounterInfo';
-      let counterEl = document.getElementById(counterId);
-      if (!counterEl) {
-        counterEl = document.createElement('small');
-        counterEl.id = counterId;
-        counterEl.style.display = 'block';
-        counterEl.style.marginTop = '6px';
-        counterEl.style.fontWeight = 'bold';
-        titleField.parentElement.appendChild(counterEl);
-      }
-  const charCount = title.length;
-  const maxChars = 70;
-  const colorClass = charCount > maxChars ? '#dc3545' : charCount > 60 ? '#f39c12' : '#28a745';
-  counterEl.style.color = colorClass;
-  counterEl.textContent = charCount + '/' + maxChars + ' caracteres';
-            
-            // Atualizar placeholder com contador dinâmico
-            if (totalWords > 0) {
-                highlightField.placeholder = "Ex: palavras específicas (título tem " + totalWords + " palavra" + (totalWords !== 1 ? "s" : "") + ")";
-                
-                // Preview das palavras numeradas
-                const wordsPreview = words.map((word, index) => (index + 1) + ":" + word).join(" | ");
-                
-                // Atualizar small text com preview
-                let smallElement = highlightField.nextElementSibling;
-                if (smallElement && smallElement.tagName === 'SMALL') {
-                    smallElement.innerHTML = "<strong>Palavras disponíveis:</strong> " + (wordsPreview.length > 100 ? wordsPreview.substring(0, 100) + "..." : wordsPreview);
-                    smallElement.style.color = '#2c3e50';
-                    smallElement.style.fontSize = '12px';
-                    smallElement.style.background = '#ecf0f1';
-                    smallElement.style.padding = '8px';
-                    smallElement.style.borderRadius = '4px';
-                    smallElement.style.marginTop = '8px';
-                }
-            } else {
-                highlightField.placeholder = 'Primeiro digite o título acima para ver as palavras disponíveis';
-                let smallElement = highlightField.nextElementSibling;
-                if (smallElement && smallElement.tagName === 'SMALL') {
-                    smallElement.innerHTML = 'Se não preenchido, a IA escolherá automaticamente as palavras-chave';
-                    smallElement.style.color = '#666';
-                    smallElement.style.background = 'transparent';
-                    smallElement.style.padding = '0';
-                }
-            }
-        }
-
-        // Adicionar listeners quando a página carregar
-        document.addEventListener('DOMContentLoaded', function() {
-            const titleField = document.getElementById('title');
-            if (titleField) {
-                titleField.addEventListener('input', atualizarContadorPalavras);
-                titleField.addEventListener('paste', () => setTimeout(atualizarContadorPalavras, 100));
-                atualizarContadorPalavras(); // Atualizar no carregamento
-            }
-        });
+        let currentCardData = null;
+        let extractedImageUrl = null;
 
         function showLoading() {
             document.getElementById('loading').style.display = 'block';
@@ -1370,12 +1395,11 @@ app.get('/', (req, res) => {
                     
                     // Preencher campos automaticamente
                     document.getElementById('title').value = data.title;
+                    document.getElementById('category').value = data.category || '';
                     document.getElementById('url').value = data.originalUrl;
-                    atualizarContadorPalavras(); // Atualizar preview do título
                     
                     // Armazenar URL da imagem extraída
                     extractedImageUrl = data.imageUrl;
-                    lastExtractedTitle = (data.title || '').trim();
                     
                     // Mostrar resultado
                     let message = '✅ Dados extraídos com sucesso!<br>';
@@ -1383,11 +1407,14 @@ app.get('/', (req, res) => {
                     if (data.title.length > 100) message += '...';
                     message += '<br>';
                     if (data.imageUrl) {
-                        message += '<strong>Imagem:</strong> Encontrada e armazenada automaticamente<br>';
+                        message += '<strong>Imagem:</strong> Encontrada automaticamente<br>';
+                        // Ocultar campo de upload manual já que temos imagem
+                        document.querySelector('label[for="image"]').innerHTML = 'Imagem do Card (Opcional - já extraída automaticamente)';
+                        document.getElementById('image').required = false;
                     } else {
-                        message += '<strong>Imagem:</strong> ⚠️ Não encontrada - será necessário subir manualmente<br>';
+                        message += '<strong>Imagem:</strong> Não encontrada - você precisa fazer upload manual<br>';
                     }
-                    message += '<br>Agora confira o contador abaixo do título e clique em "🎨 Gerar Preview"!';
+                    message += '<br>Agora clique em "🎨 Gerar Preview" para ver o resultado!';
                     
                     showResult(message);
                 } else {
@@ -1404,15 +1431,12 @@ app.get('/', (req, res) => {
             const formData = new FormData(document.getElementById('publishForm'));
             
             // Se temos uma imagem extraída da URL, usar ela
-            if (extractedImageUrl) {
+            if (extractedImageUrl && !formData.get('image').size) {
                 formData.append('extractedImageUrl', extractedImageUrl);
             }
-            
-      // Inferir "sem IA": se o título foi alterado manualmente após a extração, usamos o título como está no card
-      const currentTitle = (document.getElementById('title').value || '').trim();
-      // Inferência: só ativa manual se houver título extraído previamente e ele for diferente do atual (ignorando espaços duplicados)
-      const norm = (s) => s.replace(/\s+/g, ' ').trim();
-      if (lastExtractedTitle && norm(lastExtractedTitle) !== norm(currentTitle) && !formData.get('useManualTitle')) {
+      // Garantir inclusão explícita da flag de título manual
+      const useManual = document.getElementById('useManualTitle').checked;
+      if (useManual && !formData.get('useManualTitle')) {
         formData.append('useManualTitle', '1');
       }
             
@@ -1421,8 +1445,8 @@ app.get('/', (req, res) => {
                 return;
             }
 
-            if (!extractedImageUrl) {
-                showResult('❌ Extraia dados de uma URL primeiro para obter a imagem', true);
+            if (!formData.get('image').size && !extractedImageUrl) {
+                showResult('❌ Selecione uma imagem ou extraia de uma URL', true);
                 return;
             }
 
@@ -1439,8 +1463,7 @@ app.get('/', (req, res) => {
                 if (result.success) {
                     currentCardData = result;
                     document.getElementById('previewImage').src = 'data:image/png;base64,' + result.cardImage;
-                    const captionEl = document.getElementById('previewCaption');
-                    captionEl.textContent = 'Legenda:\n\n' + result.caption;
+                    document.getElementById('previewCaption').innerHTML = '<strong>Legenda:</strong><br><br>' + result.caption.replace(/\\n/g, '<br>');
                     document.getElementById('preview').style.display = 'block';
                     showResult('✅ Card gerado com sucesso! Confira o preview acima.');
                 } else {
@@ -1490,6 +1513,17 @@ app.get('/', (req, res) => {
 
             hideLoading();
         }
+
+        // UX: se o usuário editar o título manualmente, marcar a flag "usar título manual"
+        (function() {
+          const titleEl = document.getElementById('title');
+          const manualChk = document.getElementById('useManualTitle');
+          if (titleEl && manualChk) {
+            titleEl.addEventListener('input', () => {
+              if (!manualChk.checked) manualChk.checked = true;
+            });
+          }
+        })();
     </script>
 </body>
 </html>
@@ -1540,11 +1574,15 @@ app.post('/api/extract-url', async (req, res) => {
 // API para processar URL (extrai dados, gera título/chapéu/legenda e o card)
 app.post('/api/process-url', async (req, res) => {
   console.log('🧠 Requisição para processar URL (end-to-end)');
+  console.log('📥 Body recebido:', req.body);
 
   try {
-    const { url, categoria, chapeuPersonalizado, destaquePersonalizado } = req.body;
+  const { url, categoria, destaquePersonalizado } = req.body;
+  const chapeuPersonalizado = req.body.chapeuPersonalizado || req.body.customChapeu;
+    const newsUrl = url || req.body.newsUrl; // Suporte para ambos os formatos
 
-    if (!url) {
+    if (!newsUrl) {
+      console.error('❌ URL não fornecida');
       return res.json({
         success: false,
         error: 'URL é obrigatória'
@@ -1552,6 +1590,7 @@ app.post('/api/process-url', async (req, res) => {
     }
 
     if (!categoria) {
+      console.error('❌ Categoria não fornecida');
       return res.json({
         success: false,
         error: 'Categoria é obrigatória'
@@ -1560,19 +1599,28 @@ app.post('/api/process-url', async (req, res) => {
 
     // Validar URL
     try {
-      new URL(url);
-    } catch {
+      new URL(newsUrl);
+    } catch (urlError) {
+      console.error('❌ URL inválida:', newsUrl);
       return res.json({ success: false, error: 'URL inválida' });
     }
 
-    console.log(`🔍 Extraindo dados iniciais de: ${url}`);
-    const extracted = await extractDataFromUrl(url);
+    console.log(`🔍 Extraindo dados iniciais de: ${newsUrl}`);
+    const extracted = await extractDataFromUrl(newsUrl);
+
+    console.log('📋 Resultado da extração:', {
+      hasTitle: !!extracted?.title,
+      hasImage: !!extracted?.imageUrl,
+      extracted: extracted
+    });
 
     if (!extracted || !extracted.title) {
+      console.error('❌ Título não extraído');
       return res.json({ success: false, error: 'Não foi possível extrair o título da página' });
     }
 
     if (!extracted.imageUrl) {
+      console.error('❌ Imagem não encontrada');
       return res.json({ success: false, error: 'Não foi possível localizar a imagem principal da notícia' });
     }
 
@@ -1581,7 +1629,7 @@ app.post('/api/process-url', async (req, res) => {
     // Decodificar entidades HTML no título para uso na legenda
     function decodeHtmlEntitiesGlobal(text) {
       const entities = {
-        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ',
+        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\'', '&nbsp;': ' ',
         '&aacute;': 'á', '&Aacute;': 'Á', '&agrave;': 'à', '&Agrave;': 'À',
         '&acirc;': 'â', '&Acirc;': 'Â', '&atilde;': 'ã', '&Atilde;': 'Ã',
         '&auml;': 'ä', '&Auml;': 'Ä', '&eacute;': 'é', '&Eacute;': 'É',
@@ -1599,12 +1647,12 @@ app.post('/api/process-url', async (req, res) => {
     const decodedTitle = decodeHtmlEntitiesGlobal(originalTitle);
 
     // Otimizar título e gerar chapéu/legenda
-  const optimizedTitle = await optimizeTitle(originalTitle);
+  const optimizedTitle = await optimizeTitle(originalTitle, extracted.description);
     // Usar chapéu personalizado ou gerar automaticamente
     const chapeu = chapeuPersonalizado || await generateChapeu(optimizedTitle);
     console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO (sem entidades HTML)
-  const caption = await generateCaption(decodedTitle, chapeu, extracted.description || '');
+  const caption = await generateCaption(decodedTitle, chapeu);
 
     // Baixar a imagem para arquivo temporário
     let tempImagePath;
@@ -1646,9 +1694,7 @@ app.post('/api/process-url', async (req, res) => {
         title: optimizedTitle,
         categoria,
         url,
-        extractedImageUrl: extracted.imageUrl,
-        chapeu,
-        publicityAvailable: await fs.pathExists(path.join(__dirname, 'uploads', 'publicity-card.jpg'))
+        extractedImageUrl: extracted.imageUrl
       });
     } catch (genErr) {
       console.error('❌ Erro ao gerar card a partir da URL:', genErr);
@@ -1667,7 +1713,8 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
   console.log('📨 Requisição para gerar card recebida');
   
   try {
-    const { title, category, url, extractedImageUrl, chapeuPersonalizado } = req.body;
+  const { title, category, url, extractedImageUrl } = req.body;
+  const chapeuPersonalizado = req.body.chapeuPersonalizado || req.body.customChapeu;
     let { destaquePersonalizado } = req.body;
     
     // Processar destaquePersonalizado se for string JSON
@@ -1720,10 +1767,11 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
 
     console.log(`📝 Processando: "${title}" (useManualTitle=${useManualTitle})`);
 
-    // Definir título do card: manual (sem IA) ou otimizado via IA
+  // Definir título do card: manual (sem IA) ou otimizado via IA
     let optimizedTitle;
     if (useManualTitle) {
-      optimizedTitle = finalizeHeadline(title, 65);
+      // Usar exatamente o que o usuário digitou (apenas trim), sem IA e sem ajustes locais
+      optimizedTitle = (title || '').toString().trim();
     } else {
       optimizedTitle = await optimizeTitle(title, undefined);
     }
@@ -1735,7 +1783,7 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
   // Decodificar entidades HTML no título para legenda
   function decodeHtmlEntitiesUpload(text) {
     const entities = {
-      '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ',
+      '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\'', '&nbsp;': ' ',
       '&aacute;': 'á', '&Aacute;': 'Á', '&agrave;': 'à', '&Agrave;': 'À',
       '&acirc;': 'â', '&Acirc;': 'Â', '&atilde;': 'ã', '&Atilde;': 'Ã',
       '&auml;': 'ä', '&Auml;': 'Ä', '&eacute;': 'é', '&Eacute;': 'É',
@@ -1777,8 +1825,7 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       caption,
       title: optimizedTitle,
       categoria: category,
-      url,
-      publicityAvailable: await fs.pathExists(path.join(__dirname, 'uploads', 'publicity-card.jpg'))
+      url
     });
 
   } catch (error) {
@@ -1803,12 +1850,12 @@ app.post('/api/upload-publicity', upload.single('publicity'), async (req, res) =
     }
 
     // Redimensionar para 1080x1350 e salvar
-    const publicityPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+  await fs.ensureDir(PERSIST_DIR);
+  const publicityPath = path.join(PERSIST_DIR, 'publicity-card.jpg');
     const processed = await sharp(req.file.path)
       .resize(1080, 1350, { fit: 'cover', position: 'center' })
       .jpeg({ quality: 92 })
       .toBuffer();
-    await fs.ensureDir(path.dirname(publicityPath));
     await fs.writeFile(publicityPath, processed);
 
     // Converter para base64 (preview)
@@ -1833,10 +1880,15 @@ app.post('/api/upload-publicity', upload.single('publicity'), async (req, res) =
   }
 });
 
-// API para buscar a imagem publicitária salva
+// Helper para obter e verificar caminho persistente da publi
+function getPersistedPublicityPath() {
+  return path.join(PERSIST_DIR, 'publicity-card.jpg');
+}
+
+// API para buscar a imagem publicitária salva (persistente)
 app.get('/api/get-publicity', (req, res) => {
   try {
-    const publicityPath = path.join(__dirname, 'uploads', 'publicity-card.jpg');
+    const publicityPath = getPersistedPublicityPath();
     
     if (fs.existsSync(publicityPath)) {
       const imageBuffer = fs.readFileSync(publicityPath);
@@ -1844,12 +1896,14 @@ app.get('/api/get-publicity', (req, res) => {
       
       res.json({
         success: true,
-        publicityImage: base64Image
+        publicityImage: base64Image,
+        persisted: true
       });
     } else {
       res.json({
         success: false,
-        error: 'Nenhum card publicitário encontrado'
+        error: 'Nenhum card publicitário encontrado',
+        persisted: false
       });
     }
   } catch (error) {
@@ -1857,6 +1911,20 @@ app.get('/api/get-publicity', (req, res) => {
       success: false, 
       error: error.message 
     });
+  }
+});
+
+// API para remover a imagem publicitária salva (persistente)
+app.delete('/api/delete-publicity', async (req, res) => {
+  try {
+    const publicityPath = getPersistedPublicityPath();
+    if (fs.existsSync(publicityPath)) {
+      await fs.unlink(publicityPath);
+      return res.json({ success: true, message: 'Publiciade removida' });
+    }
+    return res.json({ success: false, error: 'Nenhuma publi persistida' });
+  } catch (error) {
+    return res.json({ success: false, error: error.message });
   }
 });
 
@@ -1978,26 +2046,16 @@ app.post('/api/publish-carousel', async (req, res) => {
   try {
     const { newsCard, publicityCard, caption } = req.body;
 
-    if (!newsCard || !caption) {
+    if (!newsCard || !publicityCard || !caption) {
       return res.json({ 
         success: false, 
-        error: 'Card da notícia e legenda são obrigatórios' 
+        error: 'Card da notícia, card publicitário e legenda são obrigatórios' 
       });
     }
 
-    // Converter base64 do card da notícia
+    // Converter base64 para buffers
     const newsBuffer = Buffer.from(newsCard, 'base64');
-
-    // Se não veio publicityCard, usar a publi persistida automaticamente
-    let publicityBuffer;
-    if (publicityCard) {
-      publicityBuffer = Buffer.from(publicityCard, 'base64');
-    } else {
-      publicityBuffer = await getPersistentPublicityPngBuffer();
-      if (!publicityBuffer) {
-        return res.json({ success: false, error: 'Nenhuma publi persistida encontrada. Envie uma em /api/upload-publicity uma única vez.' });
-      }
-    }
+    const publicityBuffer = Buffer.from(publicityCard, 'base64');
     
     // Publicar carrossel no Instagram
     const result = await publishCarouselToInstagram([newsBuffer, publicityBuffer], caption);
@@ -2023,7 +2081,7 @@ app.post('/api/publish-instagram', async (req, res) => {
   console.log('📤 Requisição para publicar no Instagram');
   
   try {
-    const { cardImage, caption } = req.body;
+  const { cardImage, caption } = req.body;
 
     if (!cardImage || !caption) {
       return res.json({ 
@@ -2034,15 +2092,18 @@ app.post('/api/publish-instagram', async (req, res) => {
 
     // Converter base64 para buffer
     const imageBuffer = Buffer.from(cardImage, 'base64');
-    
-    // Publicar no Instagram
-    const result = await publishToInstagram(imageBuffer, caption);
 
-    res.json({
-      success: true,
-      postId: result.postId,
-      mediaId: result.mediaId
-    });
+    // Se houver publi persistida, publicar como carrossel automaticamente (notícia + publi)
+    const publicityPath = getPersistedPublicityPath();
+    if (fs.existsSync(publicityPath)) {
+      const publicityBuffer = await fs.readFile(publicityPath);
+      const carResult = await publishCarouselToInstagram([imageBuffer, publicityBuffer], caption);
+      return res.json({ success: true, postId: carResult.postId, carouselId: carResult.carouselId, mediaIds: carResult.mediaIds, usedCarousel: true });
+    }
+
+    // Caso contrário, publicar imagem única
+    const result = await publishToInstagram(imageBuffer, caption);
+    res.json({ success: true, postId: result.postId, mediaId: result.mediaId, usedCarousel: false });
 
   } catch (error) {
     console.error('❌ Erro ao publicar:', error);
@@ -2063,6 +2124,7 @@ app.listen(PORT, () => {
   console.log(`📱 Instagram Business ID: ${INSTAGRAM_CONFIG.BUSINESS_ID || 'NÃO DEFINIDO'}`);
   console.log(`🔑 IG Token configurado? ${INSTAGRAM_CONFIG.ACCESS_TOKEN ? 'Sim' : 'Não'}`);
   console.log(`🤖 Groq AI configurado? ${GROQ_CONFIG.API_KEY ? 'Sim' : 'Não'}`);
+  console.log(`💾 Diretório persistente da PUBLI: ${PERSIST_DIR}`);
   if (!GROQ_CONFIG.API_KEY) console.log('⚠️ Defina a variável de ambiente GROQ_API_KEY para habilitar IA.');
   if (!INSTAGRAM_CONFIG.ACCESS_TOKEN) console.log('⚠️ Defina IG_ACCESS_TOKEN para publicar no Instagram.');
   if (!INSTAGRAM_CONFIG.PUBLIC_BASE_URL) console.log('⚠️ Defina PUBLIC_BASE_URL (ex.: https://seu-dominio.com) para permitir a publicação (image_url exigido pela Meta).');
