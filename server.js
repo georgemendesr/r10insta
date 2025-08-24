@@ -840,10 +840,75 @@ async function generateInstagramCard(data) {
       return { boldStart: bestStart, boldLength: bestLength };
     };
 
+    // 3.b Destaque via Groq: escolher 2 palavras contíguas do título (ou 1 se não houver par bom)
+    async function generateGroqHighlight(text) {
+      try {
+        if (!GROQ_CONFIG.API_KEY) return null;
+        const prompt = `Escolha EXATAMENTE 2 PALAVRAS CONTÍGUAS do TÍTULO abaixo para destacar no card (se não houver par bom, retorne 1 palavra forte).\n\nTÍTULO: "${(text || '').replace(/\s+/g, ' ').trim()}"\n\nCRITÉRIOS (em ordem):\n- Aumentar impacto informativo (pode estar no meio do título)\n- Preferir nomes próprios/entidades, número + substantivo, local + evento, verbo + substantivo\n- Evitar iniciar/terminar com stopwords (de, da, do, em, na, no, com, para, por, a, o, e, que)\n- As palavras devem ser cópia EXATA e CONTÍGUAS no título\n\nFORMATO DE RESPOSTA (JSON válido):\n{ "highlight": "DUAS PALAVRAS CONTÍGUAS DO TÍTULO" }`;
+
+        const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${GROQ_CONFIG.API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: GROQ_CONFIG.MODEL,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 30,
+            temperature: 0.1
+          })
+        });
+        if (!response.ok) return null;
+        const data = await response.json();
+        let raw = (data.choices?.[0]?.message?.content || '').trim();
+        // Tentar parsear JSON
+        let hl = '';
+        try {
+          const m = raw.match(/\{[\s\S]*\}/);
+          if (m) {
+            const obj = JSON.parse(m[0]);
+            hl = (obj.highlight || '').toString();
+          }
+        } catch {}
+        if (!hl) {
+          // fallback: usar primeira linha/sem aspas
+          hl = raw.replace(/^"|"$/g, '');
+        }
+        hl = decodeHtmlEntitiesAll(hl).replace(/\s+/g, ' ').trim();
+        if (!hl) return null;
+
+        // Validar presença contígua no título e derivar índices
+        const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const titleWords = (text || '').split(' ').filter(Boolean);
+        const normTitle = titleWords.map(w => normalize(w));
+        const hlWords = hl.split(' ').filter(Boolean);
+        const normHl = hlWords.map(w => normalize(w));
+
+        let startIdx = -1;
+        for (let i = 0; i <= normTitle.length - normHl.length; i++) {
+          let ok = true;
+          for (let j = 0; j < normHl.length; j++) {
+            if (normTitle[i + j] !== normHl[j]) { ok = false; break; }
+          }
+          if (ok) { startIdx = i; break; }
+        }
+        if (startIdx >= 0) {
+          const len = Math.min(2, Math.max(1, normHl.length));
+          console.log(`🤖 Groq destacou: "${hl}" (start ${startIdx}, len ${len})`);
+          return { boldStart: startIdx, boldLength: len };
+        }
+        return null;
+      } catch (e) {
+        console.log('⚠️ Groq highlight indisponível:', e.message);
+        return null;
+      }
+    }
+
   // Não truncar o título antes; deixar o algoritmo de quebra distribuir em até 3 linhas
   const adaptedTitle = title;
   const titleWords = adaptedTitle.split(' ');
-  // Determinar destaque: usar personalizado ou automático
+  // Determinar destaque: usar personalizado, depois Groq, depois automático local
   let boldStart, boldLength;
   
   if (destaquePersonalizado) {
@@ -876,10 +941,19 @@ async function generateInstagramCard(data) {
       }
     }
   } else {
-    // Usar destaque automático
-    const result = findKeywords(adaptedTitle);
-    boldStart = result.boldStart;
-    boldLength = result.boldLength;
+    // Tentar Groq primeiro
+    const groqHL = await generateGroqHighlight(adaptedTitle);
+    if (groqHL && groqHL.boldStart >= 0) {
+      boldStart = groqHL.boldStart;
+      boldLength = groqHL.boldLength;
+      console.log('✅ Destaque via Groq aplicado');
+    } else {
+      // Fallback: heurística local
+      const result = findKeywords(adaptedTitle);
+      boldStart = result.boldStart;
+      boldLength = result.boldLength;
+      console.log('🔄 Destaque heurístico local aplicado');
+    }
   }
     
     // Usar quebra por largura calculada (respeitando margens e evitando linhas com 1 palavra)
