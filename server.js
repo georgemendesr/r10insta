@@ -1816,8 +1816,8 @@ app.post('/api/process-url', async (req, res) => {
 
     // Otimizar título e gerar chapéu/legenda
   const optimizedTitle = await optimizeTitle(originalTitle);
-    // Usar chapéu personalizado ou gerar automaticamente
-    const chapeu = chapeuPersonalizado || await generateChapeu(optimizedTitle);
+    // Usar chapéu personalizado ou gerar automaticamente (sempre em CAIXA ALTA)
+    const chapeu = (chapeuPersonalizado ? chapeuPersonalizado.toUpperCase() : null) || await generateChapeu(optimizedTitle);
     console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO (sem entidades HTML)
   const caption = await generateCaption(decodedTitle, chapeu, extracted.description || '');
@@ -1944,8 +1944,8 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       optimizedTitle = await optimizeTitle(title, undefined);
     }
     
-    // Gerar chapéu complementar - usar personalizado se fornecido
-    const chapeu = chapeuPersonalizado || await generateChapeu(optimizedTitle);
+    // Gerar chapéu complementar - usar personalizado se fornecido (sempre em CAIXA ALTA)
+    const chapeu = (chapeuPersonalizado ? chapeuPersonalizado.toUpperCase() : null) || await generateChapeu(optimizedTitle);
     console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
     
   // Decodificar entidades HTML no título para legenda
