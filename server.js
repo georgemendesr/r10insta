@@ -19,12 +19,35 @@ try {
     require('dotenv').config({ path: localEnv, override: true });
     console.log('📦 .env (instagram-publisher) carregado, sobrescrevendo o da raiz');
   }
+  // Proteção: nunca herdar PORT do .env da raiz
+  if (process.env.PORT && process.cwd().toLowerCase().includes('instagram-publisher')) {
+    // Se a PORT veio do .env de cima (ex.: 8080), ignore e deixe a leitura abaixo usar padrão 9000 ou .env local
+    if (process.env.PORT === '8080') {
+      delete process.env.PORT;
+    }
+  }
 } catch (e) {
   console.log('⚠️ dotenv não carregado (opcional)');
 }
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '9000', 10);
+// Porta padrão do instagram-publisher é 9000; .env local pode sobrescrever
+const PORT = parseInt((process.env.PORT && process.env.PORT !== '8080') ? process.env.PORT : '9000', 10);
+
+// Carregar logo R10 POST (se existir) para uso no topo da UI
+let R10_LOGO_DATAURL = null;
+try {
+  const logoR10PostPath = path.join(__dirname, 'r10post.png');
+  if (fs.existsSync(logoR10PostPath)) {
+    const buf = fs.readFileSync(logoR10PostPath);
+    R10_LOGO_DATAURL = 'data:image/png;base64,' + buf.toString('base64');
+    console.log('🖼️ Logo R10 POST carregada para a interface');
+  } else {
+    console.log('ℹ️ r10post.png não encontrado; usando fallback padrão');
+  }
+} catch (e) {
+  console.log('⚠️ Não foi possível carregar r10post.png:', e.message);
+}
 
 // Middlewares essenciais
 app.use(cors());
@@ -34,6 +57,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static para servir a pasta public e, em especial, /uploads (necessário para image_url)
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+// Rota direta para servir a nova logo, caso referenciada por URL
+app.get('/r10post.png', (req, res) => {
+  const p = path.join(__dirname, 'r10post.png');
+  if (fs.existsSync(p)) return res.sendFile(p);
+  return res.status(404).send('logo not found');
+});
 
 // Multer storage (salva uploads temporários em uploads/tmp)
 const storage = multer.diskStorage({
@@ -263,6 +292,73 @@ const GROQ_CONFIG = {
 // Em produção (Render), defina PERSIST_DIR para um disco persistente, ex.: "/data/instagram-publisher"
 const PERSIST_DIR = process.env.PERSIST_DIR || path.join(__dirname, 'uploads');
 
+// === Publicidade: geração padrão e obtenção persistente ===
+async function generateDefaultPublicityCard() {
+  // Cria um card 1080x1350 com fundo escuro e logotipo R10 centralizado + rótulo PUBLICIDADE
+  const width = 1080;
+  const height = 1350;
+  const background = { r: 12, g: 12, b: 12, alpha: 1 }; // fundo #0c0c0c
+
+  // Base sólida
+  const base = await sharp({
+    create: { width, height, channels: 4, background }
+  }).png().toBuffer();
+
+  // Carregar logo
+  const logoPath = path.join(__dirname, 'logo-r10-piaui.png');
+  let logoBuffer = null;
+  try {
+    logoBuffer = await fs.readFile(logoPath);
+  } catch (e) {
+    console.warn('⚠️ Logo não encontrado, continuará sem logo:', logoPath);
+  }
+
+  // SVG com textos
+  const svg = Buffer.from(`
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#111"/>
+          <stop offset="100%" stop-color="#222"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="${width}" height="${height}" fill="url(#g)"/>
+      <text x="540" y="210" text-anchor="middle" fill="#ffffff" font-family="Poppins, Arial" font-size="54" font-weight="800">PUBLICIDADE</text>
+      <text x="540" y="1240" text-anchor="middle" fill="#ffffff" font-family="Poppins, Arial" font-size="34" font-weight="600">R10 PIAUÍ — Dá gosto de ver!</text>
+    </svg>
+  `);
+
+  const composites = [{ input: svg, top: 0, left: 0 }];
+
+  // Se logo existir, redimensiona e centraliza
+  if (logoBuffer) {
+    const resizedLogo = await sharp(logoBuffer).resize({ width: 700, withoutEnlargement: true }).toBuffer();
+    // Posição aproximada central
+    const logoTop = Math.round(height / 2) - 220;
+    const logoLeft = Math.round((width - 700) / 2);
+    composites.push({ input: resizedLogo, top: logoTop, left: logoLeft });
+  }
+
+  const buffer = await sharp(base)
+    .composite(composites)
+    .jpeg({ quality: 92 })
+    .toBuffer();
+
+  return buffer;
+}
+
+async function getOrCreatePublicityBuffer() {
+  await fs.ensureDir(PERSIST_DIR);
+  const publicityPath = path.join(PERSIST_DIR, 'publicity-card.jpg');
+  if (fs.existsSync(publicityPath)) {
+    return fs.readFile(publicityPath);
+  }
+  // gerar padrão e persistir
+  const buf = await generateDefaultPublicityCard();
+  await fs.writeFile(publicityPath, buf);
+  return buf;
+}
+
 // Função para condensar e finalizar título SEM reticências
 // Função para otimizar título com Groq (sempre tenta IA, mesmo para títulos curtos)
 async function optimizeTitle(title, contextDescription) {
@@ -477,13 +573,13 @@ REGRAS:
       const data = await response.json();
       console.log(`📝 Resposta Groq chapéu:`, JSON.stringify(data, null, 2));
       
-      const ch = data.choices[0]?.message?.content?.trim().toUpperCase();
+  const ch = data.choices[0]?.message?.content?.trim().toUpperCase();
       if (ch && ch.length > 0 && ch.length <= 12) {
         const cleanChapeu = ch.replace(/^['"]|['"]$/g, '');
         const allowed = new Set(['DESTAQUE','URGENTE','IMPORTANTE','EXCLUSIVO','ATENÇÃO','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA']);
         if (allowed.has(cleanChapeu)) {
           console.log(`✅ Chapéu gerado: "${cleanChapeu}"`);
-          return cleanChapeu;
+          return cleanChapeu.toUpperCase();
         } else {
           console.log('⚠️ Chapéu fora da lista permitida, aplicando fallback');
         }
@@ -503,7 +599,8 @@ REGRAS:
   const fallbacks = ['DESTAQUE', 'NOTÍCIA', 'IMPORTANTE', 'AGORA', 'NOVO', 'URGENTE', 'ATENÇÃO'];
   const selectedFallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
   console.log(`🔄 Fallback chapéu: "${selectedFallback}"`);
-  return selectedFallback;
+  return selectedFallback.toUpperCase();
+  return selectedFallback.toUpperCase();
 }
 
 // Função para gerar legenda com Groq (sem categoria)
@@ -1268,6 +1365,7 @@ app.get('/', (req, res) => {
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
+  .logo img { height: 80px; }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -1277,7 +1375,7 @@ app.get('/', (req, res) => {
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">🔴 R10 PIAUÍ</div>
+            <div class="logo"><img src="${R10_LOGO_DATAURL || '/r10post.png'}" alt="R10 POST"></div>
             <h2>Instagram Publisher</h2>
             <p>Geração e Publicação Automática de Cards</p>
         </div>
@@ -1460,12 +1558,12 @@ app.get('/', (req, res) => {
 
                 const result = await response.json();
                 
-                if (result.success) {
+        if (result.success) {
                     currentCardData = result;
                     document.getElementById('previewImage').src = 'data:image/png;base64,' + result.cardImage;
                     document.getElementById('previewCaption').innerHTML = '<strong>Legenda:</strong><br><br>' + result.caption.replace(/\\n/g, '<br>');
                     document.getElementById('preview').style.display = 'block';
-                    showResult('✅ Card gerado com sucesso! Confira o preview acima.');
+          showResult('✅ Card gerado com sucesso! Confira o preview acima.<br>ℹ️ Ao publicar, incluiremos automaticamente a imagem 2 (publicidade fixa).');
                 } else {
                     showResult('❌ Erro ao gerar card: ' + result.error, true);
                 }
@@ -1522,6 +1620,20 @@ app.get('/', (req, res) => {
             titleEl.addEventListener('input', () => {
               if (!manualChk.checked) manualChk.checked = true;
             });
+          }
+        })();
+
+        // UX: chapéu sempre em caixa alta na edição manual
+        (function() {
+          const chEl = document.getElementById('customChapeu');
+          if (chEl) {
+            chEl.addEventListener('input', () => {
+              const start = chEl.selectionStart; const end = chEl.selectionEnd;
+              chEl.value = (chEl.value || '').toUpperCase();
+              // restaurar caret
+              try { chEl.setSelectionRange(start, end); } catch(e) {}
+            });
+            chEl.addEventListener('blur', () => { chEl.value = (chEl.value || '').toUpperCase(); });
           }
         })();
     </script>
@@ -1644,15 +1756,15 @@ app.post('/api/process-url', async (req, res) => {
       return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity);
     }
 
-    const decodedTitle = decodeHtmlEntitiesGlobal(originalTitle);
+  const decodedTitle = decodeHtmlEntitiesGlobal(originalTitle);
 
-    // Otimizar título e gerar chapéu/legenda
+  // Otimizar título e gerar chapéu/legenda
   const optimizedTitle = await optimizeTitle(originalTitle, extracted.description);
-    // Usar chapéu personalizado ou gerar automaticamente
-    const chapeu = chapeuPersonalizado || await generateChapeu(optimizedTitle);
-    console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
+  // Usar chapéu personalizado ou gerar automaticamente SEMPRE EM CAIXA ALTA
+  const chapeu = (chapeuPersonalizado ? String(chapeuPersonalizado) : await generateChapeu(optimizedTitle)).toUpperCase();
+  console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO (sem entidades HTML)
-  const caption = await generateCaption(decodedTitle, chapeu);
+  const caption = await generateCaption(decodedTitle, chapeu.toUpperCase());
 
     // Baixar a imagem para arquivo temporário
     let tempImagePath;
@@ -1777,7 +1889,7 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
     }
     
     // Gerar chapéu complementar - usar personalizado se fornecido
-    const chapeu = chapeuPersonalizado || await generateChapeu(optimizedTitle);
+  const chapeu = (chapeuPersonalizado ? String(chapeuPersonalizado) : await generateChapeu(optimizedTitle)).toUpperCase();
     console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
     
   // Decodificar entidades HTML no título para legenda
@@ -1800,7 +1912,7 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
   
   const titleDecodificado = decodeHtmlEntitiesUpload(title);
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO informado (não o otimizado)
-  const caption = await generateCaption(titleDecodificado, chapeu);
+  const caption = await generateCaption(titleDecodificado, chapeu.toUpperCase());
     
     // Gerar card
     const cardBuffer = await generateInstagramCard({
@@ -1886,26 +1998,14 @@ function getPersistedPublicityPath() {
 }
 
 // API para buscar a imagem publicitária salva (persistente)
-app.get('/api/get-publicity', (req, res) => {
+app.get('/api/get-publicity', async (req, res) => {
   try {
     const publicityPath = getPersistedPublicityPath();
-    
-    if (fs.existsSync(publicityPath)) {
-      const imageBuffer = fs.readFileSync(publicityPath);
-      const base64Image = imageBuffer.toString('base64');
-      
-      res.json({
-        success: true,
-        publicityImage: base64Image,
-        persisted: true
-      });
-    } else {
-      res.json({
-        success: false,
-        error: 'Nenhum card publicitário encontrado',
-        persisted: false
-      });
-    }
+    const persisted = fs.existsSync(publicityPath);
+    // Garante que exista uma publi persistida; se não existir, cria e salva a padrão
+    const buffer = await getOrCreatePublicityBuffer();
+    const base64Image = buffer.toString('base64');
+    res.json({ success: true, publicityImage: base64Image, persisted });
   } catch (error) {
     res.json({ 
       success: false, 
@@ -2044,18 +2144,18 @@ app.post('/api/publish-carousel', async (req, res) => {
   console.log('📤 Requisição para publicar carrossel no Instagram');
   
   try {
-    const { newsCard, publicityCard, caption } = req.body;
+    const { newsCard, caption } = req.body;
 
-    if (!newsCard || !publicityCard || !caption) {
+    if (!newsCard || !caption) {
       return res.json({ 
         success: false, 
-        error: 'Card da notícia, card publicitário e legenda são obrigatórios' 
+        error: 'Card da notícia e legenda são obrigatórios' 
       });
     }
 
-    // Converter base64 para buffers
+    // Converter base64 para buffer da notícia e usar SEMPRE a publi persistida/padrão
     const newsBuffer = Buffer.from(newsCard, 'base64');
-    const publicityBuffer = Buffer.from(publicityCard, 'base64');
+    const publicityBuffer = await getOrCreatePublicityBuffer();
     
     // Publicar carrossel no Instagram
     const result = await publishCarouselToInstagram([newsBuffer, publicityBuffer], caption);
@@ -2081,7 +2181,7 @@ app.post('/api/publish-instagram', async (req, res) => {
   console.log('📤 Requisição para publicar no Instagram');
   
   try {
-  const { cardImage, caption } = req.body;
+    const { cardImage, caption } = req.body;
 
     if (!cardImage || !caption) {
       return res.json({ 
@@ -2093,17 +2193,10 @@ app.post('/api/publish-instagram', async (req, res) => {
     // Converter base64 para buffer
     const imageBuffer = Buffer.from(cardImage, 'base64');
 
-    // Se houver publi persistida, publicar como carrossel automaticamente (notícia + publi)
-    const publicityPath = getPersistedPublicityPath();
-    if (fs.existsSync(publicityPath)) {
-      const publicityBuffer = await fs.readFile(publicityPath);
-      const carResult = await publishCarouselToInstagram([imageBuffer, publicityBuffer], caption);
-      return res.json({ success: true, postId: carResult.postId, carouselId: carResult.carouselId, mediaIds: carResult.mediaIds, usedCarousel: true });
-    }
-
-    // Caso contrário, publicar imagem única
-    const result = await publishToInstagram(imageBuffer, caption);
-    res.json({ success: true, postId: result.postId, mediaId: result.mediaId, usedCarousel: false });
+    // Sempre publicar como carrossel: notícia + PUBLI fixa (persistida ou gerada e gravada)
+    const publicityBuffer = await getOrCreatePublicityBuffer();
+    const carResult = await publishCarouselToInstagram([imageBuffer, publicityBuffer], caption);
+    return res.json({ success: true, postId: carResult.postId, carouselId: carResult.carouselId, mediaIds: carResult.mediaIds, usedCarousel: true });
 
   } catch (error) {
     console.error('❌ Erro ao publicar:', error);

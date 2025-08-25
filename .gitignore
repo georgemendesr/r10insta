@@ -1,0 +1,37 @@
+# Node
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime
+uploads/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Builds / cache
+.cache/
+dist/
+.tmp/
+
+# OS
+ehthumbs.db
+Icon?
+
+# Public uploads (Meta fetch)
+public/uploads/
