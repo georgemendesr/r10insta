@@ -708,9 +708,10 @@
                         try {
                             const pr = await fetch('/api/get-publicity');
                             const pj = await pr.json();
-                            // Só considerar para payload se a origem for persistida; imagem padrão não entra em carrossel
-                            if (pj.success && pj.publicityImage && pj.source === 'persisted') {
+                            // SEMPRE usar a imagem publicitária disponível (persistida ou default)
+                            if (pj.success && pj.publicityImage) {
                                 publicityCardData = `data:image/jpeg;base64,${pj.publicityImage}`;
+                                console.log(`✅ Imagem publicitária carregada no preview (${pj.source || 'unknown'})`);
                             }
                         } catch {}
                     }
@@ -836,14 +837,14 @@
                 const result = await response.json();
                 
                 if (result.success && result.publicityImage) {
-                    // Mostrar preview se existir qualquer origem, mas só marcar para payload quando for persistida
+                    // Sempre usar a imagem publicitária encontrada (persistida ou default)
                     const imgDataUrl = `data:image/jpeg;base64,${result.publicityImage}`;
                     const previewImg = document.getElementById('publicityPreviewImage');
                     previewImg.src = imgDataUrl;
                     document.getElementById('publicityPreview').style.display = 'block';
-                    if (result.source === 'persisted') {
-                        publicityCardData = imgDataUrl;
-                    }
+                    // SEMPRE definir publicityCardData quando há imagem disponível
+                    publicityCardData = imgDataUrl;
+                    console.log(`✅ Imagem publicitária carregada (${result.source || 'unknown'})`);
                 }
             } catch (error) {
                 console.log('Nenhum card publicitário salvo');
