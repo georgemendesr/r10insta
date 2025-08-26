@@ -263,16 +263,22 @@ function decodeHtmlEntitiesAll(text = '') {
     '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&nbsp;': ' ',
     '&aacute;': 'á', '&Aacute;': 'Á', '&agrave;': 'à', '&Agrave;': 'À',
     '&acirc;': 'â', '&Acirc;': 'Â', '&atilde;': 'ã', '&Atilde;': 'Ã',
-    '&auml;': 'ä', '&Auml;': 'Ä', '&eacute;': 'é', '&Eacute;': 'É',
+    '&auml;': 'ä', '&Aumel;': 'Ä', '&eacute;': 'é', '&Eacute;': 'É',
     '&egrave;': 'è', '&Egrave;': 'È', '&ecirc;': 'ê', '&Ecirc;': 'Ê',
     '&iacute;': 'í', '&Iacute;': 'Í', '&igrave;': 'ì', '&Igrave;': 'Ì',
     '&icirc;': 'î', '&Icirc;': 'Î', '&oacute;': 'ó', '&Oacute;': 'Ó',
     '&ograve;': 'ò', '&Ograve;': 'Ò', '&ocirc;': 'ô', '&Ocirc;': 'Ô',
     '&otilde;': 'õ', '&Otilde;': 'Õ', '&uacute;': 'ú', '&Uacute;': 'Ú',
     '&ugrave;': 'ù', '&Ugrave;': 'Ù', '&ucirc;': 'û', '&Ucirc;': 'Û',
-    '&ccedil;': 'ç', '&Ccedil;': 'Ç'
+    '&ccedil;': 'ç', '&Ccedil;': 'Ç',
+    // Entidades numéricas e especiais
+    '&ordm;': 'º', '&ordf;': 'ª', '&deg;': '°', '&plusmn;': '±',
+    '&sup1;': '¹', '&sup2;': '²', '&sup3;': '³', '&frac14;': '¼',
+    '&frac12;': '½', '&frac34;': '¾', '&iquest;': '¿', '&iexcl;': '¡',
+    '&laquo;': '«', '&raquo;': '»', '&ldquo;': '"', '&rdquo;': '"',
+    '&lsquo;': "'", '&rsquo;': "'", '&ndash;': '–', '&mdash;': '—'
   };
-  return text.replace(/&[a-zA-Z]+;/g, (entity) => entities[entity] || entity).normalize('NFC');
+  return text.replace(/&[a-zA-Z0-9]+;/g, (entity) => entities[entity] || entity).normalize('NFC');
 }
 
 // Otimizar título com Groq (ajustes mínimos, até 60 chars) com fallback conservador
@@ -394,7 +400,8 @@ async function generateChapeu(title) {
 TÍTULO: "${(title || '').replace(/\s+/g,' ').trim()}"
 
 REGRAS:
-- OBRIGATÓRIO: Responder APENAS em PORTUGUÊS BRASILEIRO - NUNCA em inglês, espanhol ou outro idioma
+- OBRIGATÓRIO: Responder APENAS em PORTUGUÊS BRASILEIRO
+- PROIBIDO: inglês (HEALTH, NEWS, etc.), espanhol (SALUD, NOTICIAS, etc.) ou outros idiomas
 - Não repita nenhuma palavra do título (ignore acentos e caixa)
 - Sem pontuação, aspas, emojis ou hashtags
 - Tom jornalístico e objetivo
@@ -435,11 +442,13 @@ Responda APENAS com o chapéu final em PORTUGUÊS.`
       let cleanChapeu = parts.join(' ').trim();
       if (cleanChapeu.length > 18) cleanChapeu = cleanChapeu.slice(0, 18).trim();
 
-      // Bloquear termos genéricos e palavras em inglês
+      // Bloquear termos genéricos, palavras em inglês e espanhol
       const bannedRaw = [
         'NOTÍCIA','NOTICIA','DESTAQUE','URGENTE','IMPORTANTE','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA','ALERTA','ATUALIZAÇÃO','ATUALIZACAO','VEJA','ENTENDA','AO VIVO','EXCLUSIVO',
         // Palavras em inglês que devem ser rejeitadas
-        'HEALTH','NEWS','BREAKING','UPDATE','POLITICS','ECONOMY','EDUCATION','SECURITY','GOVERNMENT','PUBLIC','PRIVATE','FEDERAL','STATE','LOCAL','BUSINESS','FINANCE','TECHNOLOGY','SCIENCE','SPORTS','CULTURE','SOCIETY','ENVIRONMENT','CLIMATE','COVID','PANDEMIC','VACCINE','HOSPITAL','MEDICAL','DOCTOR','PATIENT','TREATMENT','EMERGENCY','URGENT','IMPORTANT','OFFICIAL','CONFIRMED','LATEST','EXCLUSIVE','LIVE'
+        'HEALTH','NEWS','BREAKING','UPDATE','POLITICS','ECONOMY','EDUCATION','SECURITY','GOVERNMENT','PUBLIC','PRIVATE','FEDERAL','STATE','LOCAL','BUSINESS','FINANCE','TECHNOLOGY','SCIENCE','SPORTS','CULTURE','SOCIETY','ENVIRONMENT','CLIMATE','COVID','PANDEMIC','VACCINE','HOSPITAL','MEDICAL','DOCTOR','PATIENT','TREATMENT','EMERGENCY','URGENT','IMPORTANT','OFFICIAL','CONFIRMED','LATEST','EXCLUSIVE','LIVE',
+        // Palavras em espanhol que devem ser rejeitadas
+        'SALUD','NOTICIAS','ACTUALIZACIÓN','ACTUALIZACIÓN','POLÍTICA','POLÍTICAS','ECONOMÍA','ECONOMIA','EDUCACIÓN','EDUCACION','SEGURIDAD','GOBIERNO','PÚBLICO','PÚBLICO','PRIVADO','FEDERAL','ESTATAL','LOCAL','NEGOCIO','FINANZAS','TECNOLOGÍA','TECNOLOGIA','CIENCIA','DEPORTES','CULTURA','SOCIEDAD','AMBIENTE','CLIMA','VACUNA','HOSPITAL','MÉDICO','MEDICO','PACIENTE','TRATAMIENTO','EMERGENCIA','URGENTE','IMPORTANTE','OFICIAL','CONFIRMADO','ÚLTIMO','ULTIMO','EXCLUSIVO','VIVO','EN VIVO'
       ];
       const banned = new Set(bannedRaw.map(normalize));
       // Mapear pt-PT -> pt-BR e evitar siglas curtas
