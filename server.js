@@ -516,7 +516,11 @@ Responda APENAS com o chapéu final em PORTUGUÊS.`
 // Função para gerar legenda com Groq (sem categoria)
 async function generateCaption(title, chapeu, description) {
   try {
-    console.log(`🤖 Gerando legenda para: "${title}" (chapéu: ${chapeu})`);
+    // Decodificar entidades HTML antes de enviar para o Groq
+    const cleanTitle = decodeHtmlEntitiesAll(title || '');
+    const cleanDescription = decodeHtmlEntitiesAll(description || '');
+    
+    console.log(`🤖 Gerando legenda para: "${cleanTitle}" (chapéu: ${chapeu})`);
     
     const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
       method: 'POST',
@@ -530,8 +534,8 @@ async function generateCaption(title, chapeu, description) {
           role: 'user',
       content: `Você é social media jornalístico. Escreva uma legenda clara, enxuta e com ótima leitura no Instagram.
 
-TÍTULO (use na 1ª linha, sem alterar): ${title}
-${description ? `\nDESCRIÇÃO/CONTEXTO: ${description}` : ''}
+TÍTULO (use na 1ª linha, sem alterar): ${cleanTitle}
+${cleanDescription ? `\nDESCRIÇÃO/CONTEXTO: ${cleanDescription}` : ''}
 
 REGRAS:
 - Não repita o título nem ideias já ditas; nada de redundância
@@ -541,7 +545,7 @@ REGRAS:
 - Sem aspas nem rótulos como "TÍTULO:" ou "LEGENDA:"
 
 MODELO EXATO (mantenha linhas em branco exatamente assim):
-${title}
+${cleanTitle}
 
 [uma linha curta, objetiva e humana que contextualiza]
 
