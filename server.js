@@ -448,13 +448,16 @@ Responda APENAS com o chapéu final em PORTUGUÊS.`
         // Palavras em inglês que devem ser rejeitadas
         'HEALTH','NEWS','BREAKING','UPDATE','POLITICS','ECONOMY','EDUCATION','SECURITY','GOVERNMENT','PUBLIC','PRIVATE','FEDERAL','STATE','LOCAL','BUSINESS','FINANCE','TECHNOLOGY','SCIENCE','SPORTS','CULTURE','SOCIETY','ENVIRONMENT','CLIMATE','COVID','PANDEMIC','VACCINE','HOSPITAL','MEDICAL','DOCTOR','PATIENT','TREATMENT','EMERGENCY','URGENT','IMPORTANT','OFFICIAL','CONFIRMED','LATEST','EXCLUSIVE','LIVE',
         // Palavras em espanhol que devem ser rejeitadas
-        'SALUD','NOTICIAS','ACTUALIZACIÓN','ACTUALIZACIÓN','POLÍTICA','POLÍTICAS','ECONOMÍA','ECONOMIA','EDUCACIÓN','EDUCACION','SEGURIDAD','GOBIERNO','PÚBLICO','PÚBLICO','PRIVADO','FEDERAL','ESTATAL','LOCAL','NEGOCIO','FINANZAS','TECNOLOGÍA','TECNOLOGIA','CIENCIA','DEPORTES','CULTURA','SOCIEDAD','AMBIENTE','CLIMA','VACUNA','HOSPITAL','MÉDICO','MEDICO','PACIENTE','TRATAMIENTO','EMERGENCIA','URGENTE','IMPORTANTE','OFICIAL','CONFIRMADO','ÚLTIMO','ULTIMO','EXCLUSIVO','VIVO','EN VIVO'
+        'SALUD','NOTICIAS','ACTUALIZACIÓN','ACTUALIZACIÓN','POLÍTICA','POLÍTICAS','ECONOMÍA','ECONOMIA','EDUCACIÓN','EDUCACION','SEGURIDAD','GOBIERNO','PÚBLICO','PÚBLICO','PRIVADO','FEDERAL','ESTATAL','LOCAL','NEGOCIO','FINANZAS','TECNOLOGÍA','TECNOLOGIA','CIENCIA','DEPORTES','CULTURA','SOCIEDAD','AMBIENTE','CLIMA','VACUNA','HOSPITAL','MÉDICO','MEDICO','PACIENTE','TRATAMIENTO','EMERGENCIA','URGENTE','IMPORTANTE','OFICIAL','CONFIRMADO','ÚLTIMO','ULTIMO','EXCLUSIVO','VIVO','EN VIVO',
+        // Palavras PT-PT que devem ser rejeitadas (usar PT-BR)
+        'CAFETARIA','ACTIVO','ACTIVA','INFORMÁTICA','POLÍCIA'
       ];
       const banned = new Set(bannedRaw.map(normalize));
       // Mapear pt-PT -> pt-BR e evitar siglas curtas
       const mapPtPtToPtBr = (s) => s
         .replace(/\bACTIVO\b/g, 'ATIVO')
-        .replace(/\bACTIVA\b/g, 'ATIVA');
+        .replace(/\bACTIVA\b/g, 'ATIVA')
+        .replace(/\bCAFETARIA\b/g, 'CAFETERIA');
       cleanChapeu = mapPtPtToPtBr(cleanChapeu).toUpperCase();
       const titleTokens = new Set((title || '').split(/\s+/).map(w => w.toUpperCase()));
       const tokens = cleanChapeu.split(/\s+/).filter(Boolean);
@@ -573,7 +576,7 @@ Responda SOMENTE com o texto final, sem comentários.`
         // Normalizar: remover reticências, linhas extras, e assegurar 1ª linha = título
         caption = caption.replace(/[\u2026]|\.\.\./g, '').replace(/\r/g, '');
         const parts = caption.split('\n').map(s => s.trim()).filter(Boolean);
-        if (parts.length > 0) parts[0] = title;
+        if (parts.length > 0) parts[0] = cleanTitle; // Usar título decodificado
         // Reconstituir com linhas em branco entre blocos
         caption = parts.join('\n\n');
         console.log('✅ Legenda gerada com sucesso (normalizada)');
