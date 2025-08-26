@@ -394,6 +394,7 @@ async function generateChapeu(title) {
 TÍTULO: "${(title || '').replace(/\s+/g,' ').trim()}"
 
 REGRAS:
+- OBRIGATÓRIO: Responder APENAS em PORTUGUÊS BRASILEIRO - NUNCA em inglês, espanhol ou outro idioma
 - Não repita nenhuma palavra do título (ignore acentos e caixa)
 - Sem pontuação, aspas, emojis ou hashtags
 - Tom jornalístico e objetivo
@@ -402,8 +403,9 @@ REGRAS:
  - PROIBIDO usar termos genéricos: NOTÍCIA, DESTAQUE, URGENTE, IMPORTANTE, AGORA, OFICIAL, CONFIRMADO, NOVIDADE, ÚLTIMA HORA, ALERTA, ATUALIZAÇÃO, VEJA, ENTENDA, AO VIVO, EXCLUSIVO
  - Português do Brasil. Evite variantes pt-PT (ex.: ATIVO, não ACTIVO)
  - Evite siglas soltas; se usar sigla, ela deve existir no título e ter 3+ letras
+ - EXEMPLOS VÁLIDOS: SAÚDE, POLÍTICA, ECONOMIA, EDUCAÇÃO, SEGURANÇA
 
-Responda APENAS com o chapéu final.`
+Responda APENAS com o chapéu final em PORTUGUÊS.`
         }],
         max_tokens: 8,
         temperature: 0.2
@@ -433,9 +435,11 @@ Responda APENAS com o chapéu final.`
       let cleanChapeu = parts.join(' ').trim();
       if (cleanChapeu.length > 18) cleanChapeu = cleanChapeu.slice(0, 18).trim();
 
-      // Bloquear termos genéricos e derivar chapéu do título quando necessário
+      // Bloquear termos genéricos e palavras em inglês
       const bannedRaw = [
-        'NOTÍCIA','NOTICIA','DESTAQUE','URGENTE','IMPORTANTE','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA','ALERTA','ATUALIZAÇÃO','ATUALIZACAO','VEJA','ENTENDA','AO VIVO','EXCLUSIVO'
+        'NOTÍCIA','NOTICIA','DESTAQUE','URGENTE','IMPORTANTE','AGORA','OFICIAL','CONFIRMADO','NOVIDADE','ÚLTIMA HORA','ULTIMA HORA','ALERTA','ATUALIZAÇÃO','ATUALIZACAO','VEJA','ENTENDA','AO VIVO','EXCLUSIVO',
+        // Palavras em inglês que devem ser rejeitadas
+        'HEALTH','NEWS','BREAKING','UPDATE','POLITICS','ECONOMY','EDUCATION','SECURITY','GOVERNMENT','PUBLIC','PRIVATE','FEDERAL','STATE','LOCAL','BUSINESS','FINANCE','TECHNOLOGY','SCIENCE','SPORTS','CULTURE','SOCIETY','ENVIRONMENT','CLIMATE','COVID','PANDEMIC','VACCINE','HOSPITAL','MEDICAL','DOCTOR','PATIENT','TREATMENT','EMERGENCY','URGENT','IMPORTANT','OFFICIAL','CONFIRMED','LATEST','EXCLUSIVE','LIVE'
       ];
       const banned = new Set(bannedRaw.map(normalize));
       // Mapear pt-PT -> pt-BR e evitar siglas curtas
