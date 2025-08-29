@@ -1175,6 +1175,161 @@ async function generateInstagramCard(data) {
   }
 }
 
+// 🆕 LAYOUT 2 - CHAPÉU COM BARRAS DINÂMICAS (baseado no mockup oficial)
+async function generateInstagramCardLayout2(data) {
+  const { title, imagePath, categoria, chapeu, destaquePersonalizado, type = 'card' } = data;
+  
+  console.log('🎨 Gerando card Layout 2 - Barras dinâmicas...');
+  
+  // Usar chapéu fornecido como parâmetro ou gerar automaticamente se não fornecido
+  const chapeuFinal = chapeu || await generateChapeu(title);
+  console.log(`🏷️ Layout 2 - Usando chapéu: "${chapeuFinal}"`);
+  
+  try {
+    // Dimensões do card Instagram
+    const dimensions = { width: 1080, height: 1350 };
+    
+    // Cores por editoria
+    const editorialColors = {
+      'polícia': '#dc2626',          // 🔴 POLÍCIA: Vermelho
+      'política': '#2563eb',         // 🔵 POLÍTICA: Azul
+      'esporte': '#16a34a',          // 🟢 ESPORTE: Verde
+      'entretenimento': '#9333ea',   // 🟣 ENTRETENIMENTO: Roxo
+      'geral': '#ea580c',            // 🟠 GERAL: Laranja
+    };
+    const barColor = editorialColors[categoria?.toLowerCase()] || editorialColors['geral'];
+    
+    // Processar imagem de fundo
+    const imageBuffer = await fs.readFile(imagePath);
+    
+    // Criar base com gradiente similar ao mockup (mais sutil)
+    const baseWithGradient = await sharp(imageBuffer)
+      .resize(dimensions.width, dimensions.height, { fit: 'cover', position: 'center' })
+      .composite([{
+        input: Buffer.from(`
+          <svg width="${dimensions.width}" height="${dimensions.height}">
+            <defs>
+              <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:rgba(0,0,0,0.1);stop-opacity:1" />
+                <stop offset="100%" style="stop-color:rgba(0,0,0,0.6);stop-opacity:1" />
+              </linearGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grad)"/>
+          </svg>
+        `),
+        blend: 'multiply'
+      }])
+      .png()
+      .toBuffer();
+    
+    // Criar Canvas para renderizar textos
+    const canvas = createCanvas(dimensions.width, dimensions.height);
+    const ctx = canvas.getContext('2d');
+    
+    // Carregar imagem base no Canvas
+    const baseImage = await loadImage(baseWithGradient);
+    ctx.drawImage(baseImage, 0, 0, dimensions.width, dimensions.height);
+    
+    // Configurações de posicionamento
+    const margin = 60;
+    const chapeuStartY = 80;
+    const lineHeight = 85;
+    
+    // Processar chapéu - quebrar em linhas se necessário
+    if (chapeuFinal) {
+      const chapeuTexto = decodeHtmlEntitiesAll(chapeuFinal);
+      const chapeuWords = chapeuTexto.split(' ');
+      const chapeuLines = [];
+      
+      // Configurar fonte para medir
+      ctx.font = 'bold 70px "Poppins", Arial, sans-serif';
+      const maxWidth = dimensions.width - (margin * 2) - 40; // margem + padding da barra
+      
+      let currentLine = '';
+      for (const word of chapeuWords) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width <= maxWidth) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) chapeuLines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) chapeuLines.push(currentLine);
+      
+      // Renderizar cada linha do chapéu com barra dinâmica
+      chapeuLines.forEach((line, index) => {
+        const y = chapeuStartY + (index * lineHeight);
+        
+        // Medir largura da linha
+        const metrics = ctx.measureText(line);
+        const barWidth = Math.ceil(metrics.width + 40); // 20px padding cada lado
+        const barHeight = 75;
+        
+        // Desenhar barra vermelha dinâmica
+        ctx.fillStyle = barColor;
+        ctx.fillRect(margin, y - 10, barWidth, barHeight);
+        
+        // Desenhar texto do chapéu (Poppins Bold 70px)
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(line, margin + 20, y + 5);
+        
+        console.log(`✅ Layout 2 - Chapéu "${line}" com barra ${barWidth}px`);
+      });
+      
+      // Calcular posição do título
+      const tituloStartY = chapeuStartY + (chapeuLines.length * lineHeight) + 40;
+      
+      // Processar título (Poppins Regular 70px)
+      const tituloTexto = decodeHtmlEntitiesAll(title);
+      const tituloWords = tituloTexto.split(' ');
+      const tituloLines = [];
+      
+      // Configurar fonte do título
+      ctx.font = '400 70px "Poppins", Arial, sans-serif';
+      const maxTituloWidth = dimensions.width - (margin * 2);
+      
+      let currentTituloLine = '';
+      for (const word of tituloWords) {
+        const testLine = currentTituloLine ? `${currentTituloLine} ${word}` : word;
+        const metrics = ctx.measureText(testLine);
+        
+        if (metrics.width <= maxTituloWidth) {
+          currentTituloLine = testLine;
+        } else {
+          if (currentTituloLine) tituloLines.push(currentTituloLine);
+          currentTituloLine = word;
+        }
+      }
+      if (currentTituloLine) tituloLines.push(currentTituloLine);
+      
+      // Renderizar linhas do título
+      ctx.fillStyle = 'white';
+      tituloLines.forEach((line, index) => {
+        const y = tituloStartY + (index * 85);
+        ctx.fillText(line, margin, y);
+        console.log(`✅ Layout 2 - Título "${line}"`);
+      });
+    }
+    
+    console.log('🎯 Layout 2 finalizado com barras dinâmicas!');
+    
+    // Converter Canvas final para buffer PNG
+    const finalImage = canvas.toBuffer('image/png');
+    
+    console.log('✅ Card Layout 2 gerado com sucesso');
+    return finalImage;
+    
+  } catch (error) {
+    console.error('❌ Erro ao gerar card Layout 2:', error);
+    throw error;
+  }
+}
+
 // Helper: carrega a publi padrão do repositório (fixa) e garante PNG 1080x1350
 async function getDefaultPublicityPngBuffer() {
   try {
@@ -1459,6 +1614,15 @@ app.get('/', (req, res) => {
                 <label for="customChapeu">Chapéu Personalizado (Opcional)</label>
                 <input type="text" id="customChapeu" name="customChapeu" placeholder="Ex: DESTAQUE, URGENTE, EXCLUSIVO..." maxlength="15">
                 <small style="color: #666; margin-top: 5px; display: block;">Se não preenchido, será gerado automaticamente pela IA</small>
+            </div>
+
+            <div class="form-group">
+                <label for="layoutType">Tipo de Layout</label>
+                <select id="layoutType" name="layoutType">
+                    <option value="1">Layout 1 - Destaques em Negrito (Original)</option>
+                    <option value="2">Layout 2 - Chapéu com Barras Dinâmicas</option>
+                </select>
+                <small style="color: #666; margin-top: 5px; display: block;">Layout 1: palavras em negrito | Layout 2: barras que acompanham cada linha do chapéu</small>
             </div>
 
             <div class="form-group">
@@ -1778,7 +1942,7 @@ app.post('/api/process-url', async (req, res) => {
   console.log('🧠 Requisição para processar URL (end-to-end)');
 
   try {
-    const { url, categoria, chapeuPersonalizado, destaquePersonalizado } = req.body;
+    const { url, categoria, chapeuPersonalizado, destaquePersonalizado, layoutType } = req.body;
 
     if (!url) {
       return res.json({
@@ -1862,15 +2026,31 @@ app.post('/api/process-url', async (req, res) => {
     }
 
     try {
-      // Gerar o card usando o overlay físico
-      const cardBuffer = await generateInstagramCard({
-        title: optimizedTitle,
-        categoria,
-        imagePath: tempImagePath,
-        chapeu,
-        destaquePersonalizado,
-        type: 'card'
-      });
+      // Gerar o card baseado no layout selecionado
+      let cardBuffer;
+      console.log('🎨 Verificando layout (process-url):', layoutType, '- Tipo:', typeof layoutType);
+      if (layoutType === 'layout2') {
+        console.log('✅ Usando LAYOUT 2 (Barras Dinâmicas) - process-url');
+        cardBuffer = await generateInstagramCardLayout2({
+          title: optimizedTitle,
+          categoria,
+          imagePath: tempImagePath,
+          chapeu,
+          destaquePersonalizado,
+          type: 'card'
+        });
+      } else {
+        console.log('📄 Usando LAYOUT 1 (Padrão) - process-url');
+        // Gerar o card usando o layout original
+        cardBuffer = await generateInstagramCard({
+          title: optimizedTitle,
+          categoria,
+          imagePath: tempImagePath,
+          chapeu,
+          destaquePersonalizado,
+          type: 'card'
+        });
+      }
 
       // Limpar arquivo temporário
       try { await fs.unlink(tempImagePath); } catch {}
@@ -1880,6 +2060,7 @@ app.post('/api/process-url', async (req, res) => {
         cardImage: cardBuffer.toString('base64'),
         caption,
         title: optimizedTitle,
+        originalTitle: decodedTitle, // CORREÇÃO: Enviar título original para edição manual
         categoria,
         url,
         extractedImageUrl: extracted.imageUrl,
@@ -1903,8 +2084,10 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
   console.log('📨 Requisição para gerar card recebida');
   
   try {
-    const { title, category, url, extractedImageUrl, chapeuPersonalizado } = req.body;
+    const { title, category, url, extractedImageUrl, chapeuPersonalizado, layoutType } = req.body;
     let { destaquePersonalizado } = req.body;
+    
+    console.log('🎨 Layout selecionado:', layoutType);
     
     // Processar destaquePersonalizado se for string JSON
     if (typeof destaquePersonalizado === 'string' && destaquePersonalizado !== '') {
@@ -1965,7 +2148,9 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
     }
     
     // Gerar chapéu complementar - usar personalizado se fornecido (sempre em CAIXA ALTA)
-    const chapeu = (chapeuPersonalizado ? chapeuPersonalizado.toUpperCase() : null) || await generateChapeu(optimizedTitle);
+    // CORREÇÃO: Quando título é manual, usar título manual para gerar chapéu também
+    const tituloParaChapeu = useManualTitle ? title : optimizedTitle;
+    const chapeu = (chapeuPersonalizado ? chapeuPersonalizado.toUpperCase() : null) || await generateChapeu(tituloParaChapeu);
     console.log(`🏷️ Chapéu definido: "${chapeu}" ${chapeuPersonalizado ? '(personalizado)' : '(automático)'}`);
     
   // Decodificar entidades HTML no título para legenda
@@ -1990,15 +2175,31 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO informado (não o otimizado)
   const caption = await generateCaption(titleDecodificado, chapeu);
     
-    // Gerar card
-    const cardBuffer = await generateInstagramCard({
-      title: optimizedTitle,
-      categoria: category,
-      imagePath,
-      chapeu,
-      destaquePersonalizado,
-      type: 'card'
-    });
+    // Gerar card baseado no layout selecionado
+    let cardBuffer;
+    console.log('🎨 Verificando layout:', layoutType, '- Tipo:', typeof layoutType);
+    if (layoutType === 'layout2') {
+      console.log('✅ Usando LAYOUT 2 (Barras Dinâmicas)');
+      cardBuffer = await generateInstagramCardLayout2({
+        title: optimizedTitle,
+        categoria: category,
+        imagePath,
+        chapeu,
+        destaquePersonalizado,
+        type: 'card'
+      });
+    } else {
+      console.log('📄 Usando LAYOUT 1 (Padrão)');
+      // Layout padrão (Layout 1)
+      cardBuffer = await generateInstagramCard({
+        title: optimizedTitle,
+        categoria: category,
+        imagePath,
+        chapeu,
+        destaquePersonalizado,
+        type: 'card'
+      });
+    }
 
     // Remover arquivo de upload/download temporário
     try {

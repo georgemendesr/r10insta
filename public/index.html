@@ -321,6 +321,13 @@
                         <label class="form-label">URL da Notícia</label>
                         <input type="url" id="urlInput" class="form-input" placeholder="https://r10piaui.com/..." required>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Layout do Card</label>
+                        <select id="layoutSelector" class="form-input">
+                            <option value="layout1">Layout 1 (Padrão)</option>
+                            <option value="layout2">Layout 2 (Barras Dinâmicas)</option>
+                        </select>
+                    </div>
                     <div id="manualTitleBlock" class="form-group" style="display:none; margin-top:15px; border-top: 2px solid #e5e7eb; padding-top: 15px;">
                         <h4 style="color: #4f46e5; margin-bottom: 15px;">✏️ Editar e Regerar Card</h4>
                         
@@ -674,7 +681,8 @@
                         url, 
                         categoria,
                         chapeuPersonalizado: chapeuPersonalizado || null,
-                        destaquePersonalizado
+                        destaquePersonalizado,
+                        layoutType: document.getElementById('layoutSelector').value
                     })
                 });
                 
@@ -687,10 +695,11 @@
                     
                     // habilitar bloco de edição manual para regerar
                     document.getElementById('manualTitleBlock').style.display = 'block';
-                    // Preencher título manual (clamp 70)
+                    // Preencher título manual com o título ORIGINAL (não otimizado) - (clamp 70)
                     const mtEl = document.getElementById('manualTitleInput');
                     const maxLen = 70;
-                    const filled = (result.title || '').substring(0, maxLen);
+                    const tituloParaEdicao = result.originalTitle || result.title || '';
+                    const filled = tituloParaEdicao.substring(0, maxLen);
                     mtEl.value = filled;
                     const cnt = document.getElementById('manualTitleCounter');
                     if (cnt) cnt.textContent = `${filled.length}/${maxLen} caracteres`;
@@ -700,8 +709,8 @@
                         document.getElementById('urlChapeuInput').value = result.chapeu;
                     }
                     
-                    // Atualizar título extraído para preview de destaque
-                    tituloExtraido = result.title || '';
+                    // Atualizar título extraído para preview de destaque (usar título ORIGINAL)
+                    tituloExtraido = tituloParaEdicao;
                     atualizarPreviewUrl();
                     // Se houver publi persistida no servidor e ainda não carregamos, buscar para exibir no preview
                     if (result.publicityAvailable && !publicityCardData) {
@@ -746,7 +755,9 @@
             try {
                 const formData = new FormData();
                 formData.append('title', manualTitle);
+                formData.append('useManualTitle', 'true'); // CORREÇÃO: Indicar que é edição manual
                 formData.append('category', currentCardData.categoria || 'geral');
+                formData.append('layoutType', document.getElementById('layoutSelector').value);
                 if (currentCardData.extractedImageUrl) {
                     formData.append('extractedImageUrl', currentCardData.extractedImageUrl);
                 }
