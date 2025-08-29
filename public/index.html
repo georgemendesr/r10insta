@@ -538,7 +538,9 @@
         let tituloExtraido = '';
         
         function atualizarPreviewUrl() {
-            mostrarPreviewPalavras(tituloExtraido, 'urlPreviewPalavras', 'urlDestaqueInicio', 'urlDestaqueFim');
+            // CORREÇÃO: Usar o título do campo de edição manual, não o título extraído automaticamente
+            const tituloAtual = document.getElementById('manualTitleInput').value || tituloExtraido;
+            mostrarPreviewPalavras(tituloAtual, 'urlPreviewPalavras', 'urlDestaqueInicio', 'urlDestaqueFim');
         }
         
         document.getElementById('urlDestaqueInicio')?.addEventListener('input', atualizarPreviewUrl);
