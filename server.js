@@ -540,12 +540,15 @@ async function generateCaption(title, chapeu, description) {
 TÍTULO (use na 1ª linha, sem alterar): ${cleanTitle}
 ${cleanDescription ? `\nDESCRIÇÃO/CONTEXTO: ${cleanDescription}` : ''}
 
-REGRAS:
+REGRAS OBRIGATÓRIAS:
 - Não repita o título nem ideias já ditas; nada de redundância
 - 1 linha curta explicando o essencial (baseie-se no contexto se houver)
 - Respeite EXATAMENTE as quebras de linha do modelo abaixo
 - Não inclua categoria/editoria; linguagem profissional e direta
 - Sem aspas nem rótulos como "TÍTULO:" ou "LEGENDA:"
+- JAMAIS use placeholders como [idade], [local], [nome] ou similares
+- Use APENAS informações concretas do título/contexto fornecido
+- Se não souber uma informação específica, não mencione ela
 
 MODELO EXATO (mantenha linhas em branco exatamente assim):
 ${cleanTitle}
@@ -573,16 +576,27 @@ Responda SOMENTE com o texto final, sem comentários.`
       
       let caption = data.choices[0]?.message?.content?.trim();
       if (caption && caption.length > 0) {
-        // Normalizar: remover reticências, linhas extras, e assegurar 1ª linha = título
-        caption = caption.replace(/[\u2026]|\.\.\./g, '').replace(/\r/g, '');
-        const parts = caption.split('\n').map(s => s.trim()).filter(Boolean);
-        if (parts.length > 0) parts[0] = cleanTitle; // Usar título decodificado
-        // Reconstituir com linhas em branco entre blocos
-        caption = parts.join('\n\n');
-        console.log('✅ Legenda gerada com sucesso (normalizada)');
-        return caption;
-      } else {
-        console.log('❌ Legenda vazia ou inválida');
+        // VALIDAÇÃO CRÍTICA: Detectar placeholders proibidos
+        const placeholders = /\[[\w\sáàâäãéèêëíìîïóòôöõúùûüç]+\]/gi;
+        if (placeholders.test(caption)) {
+          console.log('🚨 ERRO CRÍTICO: Legenda contém placeholders proibidos');
+          console.log('📝 Legenda rejeitada:', caption);
+          // Usar fallback em vez da legenda com placeholders
+          caption = null;
+        } else {
+          // Normalizar: remover reticências, linhas extras, e assegurar 1ª linha = título
+          caption = caption.replace(/[\u2026]|\.\.\./g, '').replace(/\r/g, '');
+          const parts = caption.split('\n').map(s => s.trim()).filter(Boolean);
+          if (parts.length > 0) parts[0] = cleanTitle; // Usar título decodificado
+          // Reconstituir com linhas em branco entre blocos
+          caption = parts.join('\n\n');
+          console.log('✅ Legenda gerada com sucesso (normalizada)');
+          return caption;
+        }
+      }
+      
+      if (!caption) {
+        console.log('❌ Legenda vazia, inválida ou com placeholders');
       }
     } else {
       const errorData = await response.json();
