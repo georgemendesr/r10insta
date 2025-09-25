@@ -2689,6 +2689,53 @@ app.post('/api/publish-instagram', async (req, res) => {
   }
 });
 
+// Endpoint de diagnóstico de variáveis de ambiente e arquivos essenciais (sem expor valores)
+app.get('/api/env-check', async (req, res) => {
+  try {
+    const overlayCard = path.join(__dirname, 'templates', 'overlay.png');
+    const overlayStory = path.join(__dirname, 'templates', 'overlaystory.png');
+    const fontsDir = path.join(__dirname, 'fonts');
+    const persistDir = process.env.PERSIST_DIR || path.join(__dirname, 'uploads');
+
+    const checks = {
+      env: {
+        IG_BUSINESS_ID: Boolean(process.env.IG_BUSINESS_ID),
+        IG_ACCESS_TOKEN: Boolean(process.env.IG_ACCESS_TOKEN),
+        PUBLIC_BASE_URL: Boolean(process.env.PUBLIC_BASE_URL),
+        GROQ_API_KEY: Boolean(process.env.GROQ_API_KEY),
+        GROQ_MODEL: Boolean(process.env.GROQ_MODEL || GROQ_CONFIG.MODEL),
+        ENABLE_LAYOUT2: FEATURE_FLAGS.ENABLE_LAYOUT2,
+        PERSIST_DIR: Boolean(process.env.PERSIST_DIR)
+      },
+      files: {
+        overlay_png_exists: await fs.pathExists(overlayCard),
+        overlaystory_png_exists: await fs.pathExists(overlayStory),
+        fonts_dir_exists: await fs.pathExists(fontsDir),
+        fonts_present: await Promise.all([
+          fs.pathExists(path.join(fontsDir, 'Poppins-Regular.ttf')),
+          fs.pathExists(path.join(fontsDir, 'Poppins-SemiBold.ttf')),
+          fs.pathExists(path.join(fontsDir, 'Poppins-ExtraBold.ttf'))
+        ]).then(arr => arr.every(Boolean)),
+        uploads_public_dir_exists: await fs.pathExists(path.join(__dirname, 'public', 'uploads')),
+        persist_dir_exists: await fs.pathExists(persistDir)
+      },
+      service: {
+        port: PORT,
+        graph_api_url: INSTAGRAM_CONFIG.GRAPH_API_URL,
+        version: 'env-check-1'
+      }
+    };
+
+    // Regras de prontidão mínimas
+    const readyForPublish = checks.env.IG_BUSINESS_ID && checks.env.IG_ACCESS_TOKEN && checks.env.PUBLIC_BASE_URL;
+    const readyForAI = checks.env.GROQ_API_KEY === true; // IA é opcional
+
+    return res.json({ success: true, readyForPublish, readyForAI, checks });
+  } catch (e) {
+    return res.json({ success: false, error: e.message });
+  }
+});
+
 // Servir fontes como arquivos estáticos (backup para Render)
 app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
 
