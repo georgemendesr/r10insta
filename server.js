@@ -768,6 +768,15 @@ async function generateInstagramCard(data) {
         const nouns = ['campeonato', 'governo', 'prefeitura', 'empresa', 'projeto', 'investimento', 'hospital', 'escola', 'universidade', 'festival', 'feira', 'educação', 'saúde', 'estação'];
         return nouns.some(noun => word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(noun.normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
       };
+      const isRomanNumeral = (word) => /^[IVX]+$/.test(word);
+      const isCompositeEntity = (wordsSlice, startIndex) => {
+        if (startIndex < wordsSlice.length - 1 &&
+            wordsSlice[startIndex].toLowerCase() === 'pedro' &&
+            wordsSlice[startIndex + 1].toLowerCase() === 'ii') {
+          return 2;
+        }
+        return 0;
+      };
 
       let bestStart = -1;
       let bestLength = desiredLen;
