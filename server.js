@@ -41,22 +41,11 @@ try {
   } else {
     throw new Error('Arquivos de fonte Poppins não encontrados');
   }
-<<<<<<< HEAD
-} catch (error) {
-  console.error('❌ ERRO ao registrar fontes Poppins:', error.message);
-  console.log('🔄 Canvas vai usar fontes padrão como fallback');
-}
-
-const app = express();
-const PORT = parseInt(process.env.PORT || '9000', 10);
-
-=======
 } catch (err) {
   console.log('🔄 Canvas vai usar fontes padrão como fallback');
 }
 const app = express();
 const PORT = parseInt(process.env.PORT || '9000', 10);
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
 // Middlewares essenciais
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -146,7 +135,6 @@ function makeHttpsRequest(inputUrl, options = {}) {
   });
 }
 
-<<<<<<< HEAD
 // Extrator simples de dados de uma página (og:title/description/image)
 async function extractDataFromUrl(pageUrl) {
   const resp = await makeHttpsRequest(pageUrl, { method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0 R10Publisher' } });
@@ -186,8 +174,6 @@ async function extractDataFromUrl(pageUrl) {
   };
 }
 
-=======
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
 // Carregar fontes na inicialização do servidor - COM FALLBACK ROBUSTO
 let EMBEDDED_FONTS_CSS = '';
 
@@ -267,14 +253,11 @@ const GROQ_CONFIG = {
   API_URL: 'https://api.groq.com/openai/v1/chat/completions'
 };
 
-<<<<<<< HEAD
-=======
 // Feature flags simples
 const FEATURE_FLAGS = {
   ENABLE_LAYOUT2: String(process.env.ENABLE_LAYOUT2 || 'false').toLowerCase() === 'true'
 };
 
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
 // Utilitário global simples para decodificar entidades HTML comuns
 function decodeHtmlEntitiesAll(text = '') {
   if (!text || typeof text !== 'string') return text || '';
@@ -762,14 +745,6 @@ async function generateInstagramCard(data) {
     
     const overlayBuffer = await fs.readFile(overlayPath);
 
-<<<<<<< HEAD
-    // 3. Função inteligente para destacar palavras importantes EXATAMENTE IGUAL
-    const findKeywords = (text) => {
-      console.log(`🔍 Analisando título: "${text}"`);
-      const words = text.split(' ');
-      const stopWords = ['de', 'da', 'do', 'em', 'na', 'no', 'com', 'para', 'por', 'a', 'o', 'e', 'que', 'um', 'uma', 'se', 'foi', 'ser'];
-      
-=======
     // 3. Função inteligente para destacar exatamente 3 palavras contíguas (com salvaguardas)
     const findKeywords = (text) => {
       console.log(`🔍 Analisando título: "${text}"`);
@@ -778,7 +753,6 @@ async function generateInstagramCard(data) {
       const desiredLen = (words.length > 3) ? 3 : (words.length === 3 ? 2 : 1);
       console.log(`📏 Título tem ${words.length} palavras. Comprimento desejado do destaque: ${desiredLen}`);
 
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
       // Critérios para identificar palavras importantes (com suporte a acentos)
       const isProperNoun = (word) => /^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(word) && word.length > 2;
       const isLocation = (word) => {
@@ -794,134 +768,6 @@ async function generateInstagramCard(data) {
         const nouns = ['campeonato', 'governo', 'prefeitura', 'empresa', 'projeto', 'investimento', 'hospital', 'escola', 'universidade', 'festival', 'feira', 'educação', 'saúde', 'estação'];
         return nouns.some(noun => word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(noun.normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
       };
-<<<<<<< HEAD
-      
-      const isRomanNumeral = (word) => /^[IVX]+$/.test(word);
-      
-      const isCompositeEntity = (words, startIndex) => {
-        if (startIndex < words.length - 1 && 
-            words[startIndex].toLowerCase() === 'pedro' && 
-            words[startIndex + 1].toLowerCase() === 'ii') {
-=======
-      const isRomanNumeral = (word) => /^[IVX]+$/.test(word);
-      const isCompositeEntity = (wordsSlice, startIndex) => {
-        if (startIndex < wordsSlice.length - 1 &&
-            wordsSlice[startIndex].toLowerCase() === 'pedro' &&
-            wordsSlice[startIndex + 1].toLowerCase() === 'ii') {
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
-          return 2;
-        }
-        return 0;
-      };
-<<<<<<< HEAD
-      
-      const maxHighlightWords = Math.max(2, Math.floor(words.length * 0.3));
-      console.log(`📏 Título tem ${words.length} palavras. Máximo destaque: ${maxHighlightWords} palavras (30%)`);
-      
-      let bestStart = -1;
-      let bestLength = 0;
-      let bestScore = 0;
-      
-      // Procurar sequências contínuas respeitando o limite de proporção
-      for (let start = 0; start < words.length; start++) {
-        for (let length = 2; length <= Math.min(maxHighlightWords, words.length - start); length++) {
-          const sequence = words.slice(start, start + length);
-          let score = 0;
-          let validSequence = true;
-          
-          let entityBonus = 0;
-          for (let i = 0; i < sequence.length; i++) {
-            const entitySize = isCompositeEntity(sequence, i);
-            if (entitySize > 0) {
-              entityBonus += 5;
-              console.log(`🏛️ Entidade composta detectada: "${sequence.slice(i, i + entitySize).join(' ')}"`);
-            }
-          }
-          
-          for (let i = 0; i < sequence.length; i++) {
-            const word = sequence[i];
-            
-            if (stopWords.includes(word.toLowerCase())) {
-              if (i === 0 || i === sequence.length - 1) {
-                console.log(`⚠️ Sequência "${sequence.join(' ')}" invalidada por stop word "${word}" na posição ${i === 0 ? 'início' : 'fim'}`);
-                validSequence = false;
-                break;
-              }
-              console.log(`✅ Stop word "${word}" aceita no meio da sequência "${sequence.join(' ')}"`);
-              continue;
-            }
-            
-            let wordScore = 0;
-            if (isProperNoun(word)) wordScore += 4;
-            if (isLocation(word)) wordScore += 3;
-            if (isNumber(word)) wordScore += 3;
-            if (isActionVerb(word)) wordScore += 2;
-            if (isImportantNoun(word)) wordScore += 3;
-            if (isRomanNumeral(word)) wordScore += 4;
-            
-            if (wordScore === 0 && word.length < 4 && !isRomanNumeral(word)) {
-              console.log(`⚠️ Sequência "${sequence.join(' ')}" invalidada por palavra irrelevante "${word}" (score: ${wordScore}, length: ${word.length})`);
-              validSequence = false;
-              break;
-            }
-            
-            score += wordScore;
-          }
-          
-          score += entityBonus;
-          
-          const sequenceText = sequence.join(' ').toLowerCase();
-          if (sequenceText.includes('pedro ii')) {
-            score += 8;
-            console.log(`🎯 Bonus "Pedro II" aplicado para: "${sequence.join(' ')}"`);
-          }
-          
-          if (start === 0 && sequenceText.includes('pedro ii') && length <= 4) {
-            score += 5;
-            console.log(`👑 Bonus protagonista inicial aplicado para: "${sequence.join(' ')}"`);
-          }
-          
-          if (validSequence && length >= 2) {
-            const hasProperNoun = sequence.some(isProperNoun);
-            const hasAction = sequence.some(word => isActionVerb(word) || isImportantNoun(word));
-            if (hasProperNoun && hasAction) score += 3;
-          }
-          
-          if (validSequence && start <= 1) score += 1;
-          
-          if (validSequence) {
-            console.log(`📊 Sequência "${sequence.join(' ')}" (pos ${start}, len ${length}): score ${score} ${entityBonus > 0 ? `(+${entityBonus} entidade)` : ''}`);
-          }
-          
-          if (validSequence && score > bestScore) {
-            bestStart = start;
-            bestLength = length;
-            bestScore = score;
-          }
-        }
-      }
-      
-      // Fallback
-      if (bestStart === -1) {
-        for (let i = 0; i < words.length - 1; i++) {
-          if (!stopWords.includes(words[i].toLowerCase()) && 
-              !stopWords.includes(words[i + 1].toLowerCase()) &&
-              words[i].length > 2 && words[i + 1].length > 2) {
-            bestStart = i;
-            bestLength = 2;
-            console.log(`🔄 Fallback: destacando "${words[i]} ${words[i + 1]}"`);
-            break;
-          }
-        }
-      }
-      
-      if (bestStart >= 0) {
-        const selectedSequence = words.slice(bestStart, bestStart + bestLength).join(' ');
-        console.log(`✅ DESTAQUE FINAL: "${selectedSequence}" (posição ${bestStart}, ${bestLength} palavras)`);
-      }
-      
-      return { boldStart: bestStart, boldLength: bestLength };
-=======
 
       let bestStart = -1;
       let bestLength = desiredLen;
@@ -1000,20 +846,15 @@ async function generateInstagramCard(data) {
         return { boldStart: bestStart, boldLength: desiredLen };
       }
       return { boldStart: -1, boldLength: 0 };
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
     };
 
     // 3.b Destaque via Groq: escolher 2 palavras contíguas do título (ou 1 se não houver par bom)
     async function generateGroqHighlight(text) {
       try {
         if (!GROQ_CONFIG.API_KEY) return null;
-<<<<<<< HEAD
-        const prompt = `Escolha EXATAMENTE 2 PALAVRAS CONTÍGUAS do TÍTULO abaixo para destacar no card (se não houver par bom, retorne 1 palavra forte).\n\nTÍTULO: "${(text || '').replace(/\s+/g, ' ').trim()}"\n\nCRITÉRIOS (em ordem):\n- Aumentar impacto informativo (pode estar no meio do título)\n- Preferir nomes próprios/entidades, número + substantivo, local + evento, verbo + substantivo\n- Evitar iniciar/terminar com stopwords (de, da, do, em, na, no, com, para, por, a, o, e, que)\n- As palavras devem ser cópia EXATA e CONTÍGUAS no título\n\nFORMATO DE RESPOSTA (JSON válido):\n{ "highlight": "DUAS PALAVRAS CONTÍGUAS DO TÍTULO" }`;
-=======
         const words = (text || '').split(' ').filter(Boolean);
         const desiredLen = (words.length > 3) ? 3 : (words.length === 3 ? 2 : Math.max(1, Math.min(1, words.length)));
         const prompt = `Escolha EXATAMENTE ${desiredLen} PALAVRA${desiredLen>1?'S':''} CONTÍGUAS do TÍTULO abaixo para destacar no card.\n\nTÍTULO: "${(text || '').replace(/\s+/g, ' ').trim()}"\n\nCRITÉRIOS (em ordem):\n- Aumentar impacto informativo (pode estar no meio do título)\n- Preferir nomes próprios/entidades, número + substantivo, local + evento, verbo + substantivo\n- Evitar iniciar/terminar o trecho com stopwords (de, da, do, em, na, no, com, para, por, a, o, e, que)\n- As palavras devem ser cópia EXATA e CONTÍGUAS no título\n- Se o título for muito curto, NÃO destaque o título inteiro (evite cobrir todas as palavras)\n\nFORMATO DE RESPOSTA (JSON válido):\n{ "highlight": "${desiredLen} PALAVRA${desiredLen>1?'S':''} CONTÍGUAS DO TÍTULO" }`;
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
 
         const response = await makeHttpsRequest(GROQ_CONFIG.API_URL, {
           method: 'POST',
@@ -1063,13 +904,9 @@ async function generateInstagramCard(data) {
           if (ok) { startIdx = i; break; }
         }
         if (startIdx >= 0) {
-<<<<<<< HEAD
-          const len = Math.min(2, Math.max(1, normHl.length));
-=======
           // Ajustar para o comprimento desejado (sem cobrir todas as palavras se evitável)
           let len = Math.max(1, Math.min(normHl.length, desiredLen));
           if (titleWords.length > desiredLen && len !== desiredLen) len = desiredLen;
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
           console.log(`🤖 Groq destacou: "${hl}" (start ${startIdx}, len ${len})`);
           return { boldStart: startIdx, boldLength: len };
         }
@@ -1129,8 +966,6 @@ async function generateInstagramCard(data) {
       boldLength = result.boldLength;
       console.log('🔄 Destaque heurístico local aplicado');
     }
-<<<<<<< HEAD
-=======
 
     // Enforce comprimento desejado e evitar 0 ou tudo (apenas no modo automático)
     const desiredLen = (titleWords.length > 3) ? 3 : (titleWords.length === 3 ? 2 : Math.max(1, Math.min(1, titleWords.length)));
@@ -1146,7 +981,6 @@ async function generateInstagramCard(data) {
       boldLength = Math.max(1, Math.min(desiredLen, titleWords.length - 1));
       boldStart = 0;
     }
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
   }
     
     // Usar quebra por largura calculada (respeitando margens e evitando linhas com 1 palavra)
@@ -2189,12 +2023,6 @@ app.post('/api/process-url', async (req, res) => {
     }
 
     try {
-<<<<<<< HEAD
-      // Gerar o card baseado no layout selecionado
-      let cardBuffer;
-      console.log('🎨 Verificando layout (process-url):', layoutType, '- Tipo:', typeof layoutType);
-      if (layoutType === 'layout2') {
-=======
       // Gerar o card baseado no layout selecionado (com feature flag do layout 2)
       let cardBuffer;
       const requestedLayout = layoutType === 'layout2' ? 'layout2' : 'layout1';
@@ -2204,7 +2032,6 @@ app.post('/api/process-url', async (req, res) => {
         console.log('⚠️ Layout 2 solicitado mas DESABILITADO por feature flag; usando Layout 1');
       }
       if (effectiveLayout === 'layout2') {
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
         console.log('✅ Usando LAYOUT 2 (Barras Dinâmicas) - process-url');
         cardBuffer = await generateInstagramCardLayout2({
           title: optimizedTitle,
@@ -2216,10 +2043,6 @@ app.post('/api/process-url', async (req, res) => {
         });
       } else {
         console.log('📄 Usando LAYOUT 1 (Padrão) - process-url');
-<<<<<<< HEAD
-        // Gerar o card usando o layout original
-=======
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
         cardBuffer = await generateInstagramCard({
           title: optimizedTitle,
           categoria,
@@ -2353,12 +2176,6 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
   // Legenda deve usar o TÍTULO COMPLETO DECODIFICADO informado (não o otimizado)
   const caption = await generateCaption(titleDecodificado, chapeu);
     
-<<<<<<< HEAD
-    // Gerar card baseado no layout selecionado
-    let cardBuffer;
-    console.log('🎨 Verificando layout:', layoutType, '- Tipo:', typeof layoutType);
-    if (layoutType === 'layout2') {
-=======
     // Gerar card baseado no layout selecionado (com feature flag do layout 2)
     let cardBuffer;
     const requestedLayout = layoutType === 'layout2' ? 'layout2' : 'layout1';
@@ -2368,7 +2185,6 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       console.log('⚠️ Layout 2 solicitado mas DESABILITADO por feature flag; usando Layout 1');
     }
     if (effectiveLayout === 'layout2') {
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
       console.log('✅ Usando LAYOUT 2 (Barras Dinâmicas)');
       cardBuffer = await generateInstagramCardLayout2({
         title: optimizedTitle,
@@ -2380,10 +2196,6 @@ app.post('/api/generate-card', upload.single('image'), async (req, res) => {
       });
     } else {
       console.log('📄 Usando LAYOUT 1 (Padrão)');
-<<<<<<< HEAD
-      // Layout padrão (Layout 1)
-=======
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
       cardBuffer = await generateInstagramCard({
         title: optimizedTitle,
         categoria: category,
@@ -2746,10 +2558,7 @@ app.listen(PORT, () => {
   console.log(`📱 Instagram Business ID: ${INSTAGRAM_CONFIG.BUSINESS_ID || 'NÃO DEFINIDO'}`);
   console.log(`🔑 IG Token configurado? ${INSTAGRAM_CONFIG.ACCESS_TOKEN ? 'Sim' : 'Não'}`);
   console.log(`🤖 Groq AI configurado? ${GROQ_CONFIG.API_KEY ? 'Sim' : 'Não'}`);
-<<<<<<< HEAD
-=======
   console.log(`🚧 Layout 2 habilitado? ${FEATURE_FLAGS.ENABLE_LAYOUT2 ? 'Sim' : 'Não'}`);
->>>>>>> 29f818b (feat(highlight): fixar destaque em 3 palavras contíguas; corrigir topo do server.js e helper HTTP; manter Layout 2 sob flag)
   if (!GROQ_CONFIG.API_KEY) console.log('⚠️ Defina a variável de ambiente GROQ_API_KEY para habilitar IA.');
   if (!INSTAGRAM_CONFIG.ACCESS_TOKEN) console.log('⚠️ Defina IG_ACCESS_TOKEN para publicar no Instagram.');
   if (!INSTAGRAM_CONFIG.PUBLIC_BASE_URL) console.log('⚠️ Defina PUBLIC_BASE_URL (ex.: https://seu-dominio.com) para permitir a publicação (image_url exigido pela Meta).');
