@@ -286,6 +286,68 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* Tabs de navegação */
+        .tabs-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .tab-button {
+            flex: 1;
+            max-width: 300px;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 15px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .tab-button:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+
+        .tab-button.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .tab-button i {
+            margin-right: 8px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @media (max-width: 768px) {
+            .tabs-container {
+                flex-direction: column;
+            }
+            
+            .tab-button {
+                max-width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
@@ -304,6 +366,20 @@
             </div>
         </div>
 
+        <!-- Tabs de navegação -->
+        <div class="tabs-container">
+            <button class="tab-button active" onclick="switchTab('instagram')">
+                <i class="fab fa-instagram"></i>
+                Gerar Card Instagram
+            </button>
+            <button class="tab-button" onclick="switchTab('video')">
+                <i class="fas fa-video"></i>
+                Gerar Capa Vídeo
+            </button>
+        </div>
+
+    <!-- SEÇÃO: Gerar Card Instagram -->
+    <div id="tab-instagram" class="tab-content active">
     <!-- Grid principal -->
     <div class="main-grid">
 
@@ -470,6 +546,101 @@
             </div>
         </div>
     </div>
+    </div> <!-- Fim tab-instagram -->
+
+    <!-- SEÇÃO: Gerar Capa de Vídeo -->
+    <div id="tab-video" class="tab-content">
+        <div class="card" style="max-width: 800px; margin: 0 auto;">
+            <div class="card-header">
+                <div class="card-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-video"></i>
+                </div>
+                <div class="card-title">Gerar Capa de Vídeo</div>
+            </div>
+
+            <form id="videoCoverForm">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-image"></i>
+                        Imagem de Fundo
+                    </label>
+                    <input 
+                        type="file" 
+                        id="videoCoverImage" 
+                        class="form-input" 
+                        accept="image/*" 
+                        required
+                        style="padding: 10px;"
+                    >
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        Formato recomendado: 1080x1920 (vertical)
+                    </small>
+                    
+                    <!-- Preview da imagem selecionada -->
+                    <div style="margin-top: 15px; text-align: center;">
+                        <img 
+                            id="videoCoverImagePreview" 
+                            style="display: none; max-width: 200px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);"
+                            alt="Preview da imagem"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-heading"></i>
+                        Título da Capa
+                    </label>
+                    <textarea 
+                        id="videoCoverTitle" 
+                        class="form-input form-textarea" 
+                        rows="3" 
+                        placeholder="Digite o título que aparecerá na capa do vídeo..."
+                        maxlength="100"
+                        required
+                    ></textarea>
+                    <small id="videoCoverTitleCounter" style="display: block; margin-top: 6px; color: #666;">
+                        0/100 caracteres
+                    </small>
+                </div>
+
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-magic"></i>
+                    Gerar Capa de Vídeo
+                </button>
+            </form>
+
+            <div id="videoCoverStatus" class="status" style="display: none;"></div>
+            <div id="videoCoverLoading" class="loading">
+                <i class="fas fa-spinner"></i>
+                <p>Gerando capa de vídeo...</p>
+            </div>
+
+            <!-- Preview da capa gerada -->
+            <div style="margin-top: 30px; text-align: center; display: none;" id="videoCoverPreviewContainer">
+                <h3 style="margin-bottom: 15px; color: #333;">
+                    <i class="fas fa-check-circle" style="color: #28a745;"></i>
+                    Capa Gerada
+                </h3>
+                <img 
+                    id="videoCoverPreview" 
+                    style="display: none; max-width: 100%; max-height: 600px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);"
+                    alt="Preview da capa"
+                >
+                <div style="margin-top: 20px;">
+                    <button 
+                        id="downloadVideoCover" 
+                        class="btn-primary" 
+                        style="display: none;"
+                    >
+                        <i class="fas fa-download"></i>
+                        Baixar Capa
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div> <!-- Fim container -->
 
     <script>
         // Modal + senha 850327
@@ -862,6 +1033,114 @@
                 console.log('Nenhum card publicitário salvo');
             }
         });
+
+        // ========== FUNÇÕES PARA TROCA DE ABAS ==========
+        function switchTab(tabName) {
+            // Esconder todos os conteúdos
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Desativar todos os botões
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Ativar o tab selecionado
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // ========== GERADOR DE CAPA DE VÍDEO ==========
+        document.getElementById('videoCoverForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const imageInput = document.getElementById('videoCoverImage');
+            const titleInput = document.getElementById('videoCoverTitle');
+            
+            if (!imageInput.files[0]) {
+                showStatus('videoCoverStatus', 'Por favor, selecione uma imagem!', 'error');
+                return;
+            }
+            
+            if (!titleInput.value.trim()) {
+                showStatus('videoCoverStatus', 'Por favor, insira um título!', 'error');
+                return;
+            }
+            
+            toggleLoading(true, 'videoCoverLoading');
+            showStatus('videoCoverStatus', 'Gerando capa de vídeo...', 'info');
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', imageInput.files[0]);
+                formData.append('title', titleInput.value.trim());
+                
+                const response = await fetch('/api/generate-video-cover', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Exibir preview
+                    const previewImg = document.getElementById('videoCoverPreview');
+                    const previewContainer = document.getElementById('videoCoverPreviewContainer');
+                    
+                    previewImg.src = `data:image/png;base64,${result.coverImage}`;
+                    previewImg.style.display = 'block';
+                    previewContainer.style.display = 'block';
+                    
+                    showStatus('videoCoverStatus', 'Capa de vídeo gerada com sucesso!', 'success');
+                    
+                    // Habilitar botão de download
+                    const downloadBtn = document.getElementById('downloadVideoCover');
+                    downloadBtn.style.display = 'inline-block';
+                    downloadBtn.onclick = () => {
+                        const link = document.createElement('a');
+                        link.href = `data:image/png;base64,${result.coverImage}`;
+                        link.download = `capa-video-r10-${Date.now()}.png`;
+                        link.click();
+                    };
+                } else {
+                    showStatus('videoCoverStatus', result.error || 'Erro ao gerar capa', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showStatus('videoCoverStatus', 'Erro de conexão com o servidor', 'error');
+            } finally {
+                toggleLoading(false, 'videoCoverLoading');
+            }
+        });
+
+        // Preview da imagem selecionada
+        document.getElementById('videoCoverImage').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const preview = document.getElementById('videoCoverImagePreview');
+                    preview.src = event.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Contador de caracteres do título
+        document.getElementById('videoCoverTitle').addEventListener('input', (e) => {
+            const counter = document.getElementById('videoCoverTitleCounter');
+            counter.textContent = `${e.target.value.length}/100 caracteres`;
+        });
+
+        // Função auxiliar para toggle de loading
+        function toggleLoading(show, loadingId = 'loading') {
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) {
+                loadingEl.style.display = show ? 'block' : 'none';
+            }
+        }
     </script>
 </body>
 </html>

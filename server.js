@@ -2557,6 +2557,165 @@ app.get('/api/env-check', async (req, res) => {
   }
 });
 
+// ========== GERADOR DE CAPA DE VÍDEO ==========
+async function generateVideoCover({ imagePath, title }) {
+  console.log(`🎬 Gerando capa de vídeo: "${title}"`);
+  
+  const dimensions = { width: 1080, height: 1920 };
+  
+  // 1. Redimensionar imagem para 1080x1920
+  const resizedImage = await sharp(imagePath)
+    .resize(dimensions.width, dimensions.height, { fit: 'cover' })
+    .toBuffer();
+
+  // 2. Ler o template overlay para vídeo
+  const overlayPath = path.join(__dirname, 'templates', 'overlay-video.png');
+  console.log(`🖼️ Carregando overlay de vídeo: ${overlayPath}`);
+  
+  // Verificar se o arquivo existe
+  try {
+    await fs.access(overlayPath);
+    console.log(`✅ Overlay de vídeo encontrado`);
+  } catch (err) {
+    console.log(`⚠️ Overlay de vídeo não encontrado, gerando sem overlay`);
+    // Se não existir, continuar sem overlay
+  }
+  
+  let overlayBuffer = null;
+  if (await fs.pathExists(overlayPath)) {
+    overlayBuffer = await fs.readFile(overlayPath);
+  }
+
+  // 3. Renderizar título com Canvas
+  const titleCanvas = createCanvas(dimensions.width, dimensions.height);
+  const ctx = titleCanvas.getContext('2d');
+  
+  // Configurações de texto
+  const maxWidth = dimensions.width - 120; // margens laterais
+  const fontSize = 90;
+  const lineHeight = fontSize * 1.2;
+  const maxLines = 4;
+  
+  // Quebrar título em palavras
+  const words = title.split(' ');
+  const lines = [];
+  let currentLine = '';
+  
+  ctx.font = `800 ${fontSize}px Poppins`; // ExtraBold
+  
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+    
+    if (metrics.width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  
+  // Limitar ao máximo de linhas
+  const finalLines = lines.slice(0, maxLines);
+  
+  // Calcular posição vertical centralizada
+  const totalTextHeight = finalLines.length * lineHeight;
+  const startY = (dimensions.height - totalTextHeight) / 2 + fontSize;
+  
+  // Desenhar texto com sombra
+  finalLines.forEach((line, index) => {
+    const y = startY + (index * lineHeight);
+    const x = dimensions.width / 2;
+    
+    // Sombra
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(line, x + 4, y + 4);
+    
+    // Texto principal
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(line, x, y);
+  });
+  
+  const textBuffer = titleCanvas.toBuffer('image/png');
+  
+  // 4. Compor todas as camadas
+  const layers = [{ input: resizedImage }];
+  
+  if (overlayBuffer) {
+    layers.push({ input: overlayBuffer });
+  }
+  
+  layers.push({ input: textBuffer });
+  
+  const finalBuffer = await sharp(resizedImage)
+    .composite(layers.slice(1))
+    .png()
+    .toBuffer();
+  
+  console.log(`✅ Capa de vídeo gerada com sucesso`);
+  return finalBuffer;
+}
+
+// Rota para gerar capa de vídeo
+app.post('/api/generate-video-cover', upload.single('image'), async (req, res) => {
+  console.log('📥 POST /api/generate-video-cover');
+  
+  try {
+    const { title } = req.body;
+    const imageFile = req.file;
+    
+    if (!imageFile) {
+      return res.json({ success: false, error: 'Imagem não fornecida' });
+    }
+    
+    if (!title || !title.trim()) {
+      return res.json({ success: false, error: 'Título não fornecido' });
+    }
+    
+    console.log(`📝 Título: "${title}"`);
+    console.log(`🖼️ Imagem: ${imageFile.originalname}`);
+    
+    // Gerar capa de vídeo
+    const coverBuffer = await generateVideoCover({
+      imagePath: imageFile.path,
+      title: title.trim()
+    });
+    
+    // Limpar arquivo temporário
+    try {
+      await fs.unlink(imageFile.path);
+    } catch (e) {
+      console.log('⚠️ Erro ao limpar arquivo temporário:', e.message);
+    }
+    
+    // Retornar imagem em base64
+    const coverBase64 = coverBuffer.toString('base64');
+    
+    res.json({
+      success: true,
+      coverImage: coverBase64
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao gerar capa de vídeo:', error);
+    
+    // Limpar arquivo temporário em caso de erro
+    if (req.file?.path) {
+      try {
+        await fs.unlink(req.file.path);
+      } catch {}
+    }
+    
+    res.json({
+      success: false,
+      error: error.message || 'Erro ao gerar capa de vídeo'
+    });
+  }
+});
+
 // Servir fontes como arquivos estáticos (backup para Render)
 app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
 
