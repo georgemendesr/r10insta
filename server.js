@@ -54,6 +54,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static para servir a pasta public e, em especial, /uploads (necessário para image_url)
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+app.use('/templates', express.static(path.join(__dirname, 'templates')));
 
 // Multer storage (salva uploads temporários em uploads/tmp)
 const storage = multer.diskStorage({
@@ -2558,91 +2559,149 @@ app.get('/api/env-check', async (req, res) => {
 });
 
 // ========== GERADOR DE CAPA DE VÍDEO ==========
-async function generateVideoCover({ imagePath, title }) {
+async function generateVideoCover({ imagePath, title, positionX = 50, positionY = 50 }) {
   console.log(`🎬 Gerando capa de vídeo: "${title}"`);
+  console.log(`🎯 Posição: X=${positionX}%, Y=${positionY}%`);
   
   const dimensions = { width: 1080, height: 1920 };
   
-  // 1. Redimensionar imagem para 1080x1920
+  // Converter porcentagem para gravity position do Sharp
+  let gravity = 'center';
+  if (positionY < 33) {
+    gravity = positionX < 33 ? 'northwest' : positionX > 66 ? 'northeast' : 'north';
+  } else if (positionY > 66) {
+    gravity = positionX < 33 ? 'southwest' : positionX > 66 ? 'southeast' : 'south';
+  } else {
+    gravity = positionX < 33 ? 'west' : positionX > 66 ? 'east' : 'center';
+  }
+  
+  console.log(`🧭 Gravity calculado: ${gravity}`);
+  
+  // 1. Redimensionar imagem SEMPRE maior primeiro, depois crop com posicionamento
+  const metadata = await sharp(imagePath).metadata();
+  console.log(`📐 Imagem original: ${metadata.width}x${metadata.height}`);
+  
+  // Sempre redimensiona para 150% maior, depois crop
   const resizedImage = await sharp(imagePath)
-    .resize(dimensions.width, dimensions.height, { fit: 'cover' })
+    .rotate() // Auto-rotacionar baseado em EXIF
+    .resize(Math.round(dimensions.width * 1.2), Math.round(dimensions.height * 1.2), { 
+      fit: 'cover'
+    })
+    .extract({
+      left: Math.round((dimensions.width * 1.2 - dimensions.width) * positionX / 100),
+      top: Math.round((dimensions.height * 1.2 - dimensions.height) * positionY / 100),
+      width: dimensions.width,
+      height: dimensions.height
+    })
     .toBuffer();
+  
+  console.log(`✂️ Crop aplicado: X=${positionX}%, Y=${positionY}%`);
 
   // 2. Ler o template overlay para vídeo
   const overlayPath = path.join(__dirname, 'templates', 'overlay-video.png');
   console.log(`🖼️ Carregando overlay de vídeo: ${overlayPath}`);
   
-  // Verificar se o arquivo existe
-  try {
-    await fs.access(overlayPath);
-    console.log(`✅ Overlay de vídeo encontrado`);
-  } catch (err) {
-    console.log(`⚠️ Overlay de vídeo não encontrado, gerando sem overlay`);
-    // Se não existir, continuar sem overlay
-  }
-  
   let overlayBuffer = null;
   if (await fs.pathExists(overlayPath)) {
     overlayBuffer = await fs.readFile(overlayPath);
+    console.log(`✅ Overlay de vídeo encontrado`);
+  } else {
+    console.log(`⚠️ Overlay de vídeo não encontrado, gerando sem overlay`);
   }
 
-  // 3. Renderizar título com Canvas
-  const titleCanvas = createCanvas(dimensions.width, dimensions.height);
-  const ctx = titleCanvas.getContext('2d');
+  // 3. Renderizar título com Canvas (SEMPRE 3 LINHAS com barras laranjas)
+  const textCanvas = createCanvas(dimensions.width, dimensions.height);
+  const ctx = textCanvas.getContext('2d');
   
   // Configurações de texto
-  const maxWidth = dimensions.width - 120; // margens laterais
-  const fontSize = 90;
-  const lineHeight = fontSize * 1.2;
-  const maxLines = 4;
+  const fontSize = 70; // Fonte Poppins SemiBold
+  const lineHeight = 105; // Espaçamento entre linhas - BARRAS SEPARADAS!
+  const marginLeft = 60; // Margem esquerda
+  const maxWidth = dimensions.width - 120; // Largura máxima para quebra
   
-  // Quebrar título em palavras
-  const words = title.split(' ');
+  console.log(`🔤 Usando fonte: 600 ${fontSize}px "Poppins" (SemiBold)`);
+  
+  // Quebrar título em EXATAMENTE 3 linhas
+  const words = title.trim().split(' ');
+  const targetLines = 3;
   const lines = [];
-  let currentLine = '';
   
-  ctx.font = `800 ${fontSize}px Poppins`; // ExtraBold
+  ctx.font = 'bold 70px "Poppins", Arial, sans-serif'; // Mesma sintaxe do card
   
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const metrics = ctx.measureText(testLine);
+  // Distribuir palavras em 3 linhas de forma equilibrada
+  const wordsPerLine = Math.ceil(words.length / targetLines);
+  
+  for (let i = 0; i < targetLines; i++) {
+    const startIdx = i * wordsPerLine;
+    const endIdx = Math.min(startIdx + wordsPerLine, words.length);
+    let lineText = words.slice(startIdx, endIdx).join(' ');
     
-    if (metrics.width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
+    // Se a linha estiver muito longa, ajustar
+    while (ctx.measureText(lineText).width > maxWidth && lineText.includes(' ')) {
+      const lastSpace = lineText.lastIndexOf(' ');
+      const removedWord = lineText.substring(lastSpace + 1);
+      lineText = lineText.substring(0, lastSpace);
+      
+      // Adicionar palavra removida na próxima linha se houver espaço
+      if (i < targetLines - 1 && endIdx < words.length) {
+        words.splice(endIdx, 0, removedWord);
+      }
+    }
+    
+    if (lineText.trim()) {
+      lines.push(lineText.trim());
     }
   }
-  if (currentLine) lines.push(currentLine);
   
-  // Limitar ao máximo de linhas
-  const finalLines = lines.slice(0, maxLines);
+  // Garantir exatamente 3 linhas (preencher com strings vazias se necessário)
+  while (lines.length < 3) {
+    lines.push('');
+  }
   
-  // Calcular posição vertical centralizada
-  const totalTextHeight = finalLines.length * lineHeight;
-  const startY = (dimensions.height - totalTextHeight) / 2 + fontSize;
+  // Limitar a 3 linhas
+  const finalLines = lines.slice(0, 3);
   
-  // Desenhar texto com sombra
+  // Posição vertical: Baseado na imagem de referência
+  // Na imagem 1920px, o texto começa em aproximadamente 1100px do topo
+  const startY = 1100;
+  
+  // Desenhar cada linha com sua barra laranja
   finalLines.forEach((line, index) => {
+    if (!line) return; // Pular linhas vazias
+    
     const y = startY + (index * lineHeight);
-    const x = dimensions.width / 2;
+    const x = marginLeft;
     
-    // Sombra
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(line, x + 4, y + 4);
+    // Configurar fonte (mesma do card do Instagram)
+    ctx.font = 'bold 70px "Poppins", Arial, sans-serif';
     
-    // Texto principal
+    // Medir largura do texto para a barra
+    const textMetrics = ctx.measureText(line);
+    const textWidth = textMetrics.width;
+    
+    // Calcular posição da barra
+    const barHeight = fontSize + 16; // Altura da barra
+    const barPadding = 10; // Padding lateral
+    const barY = y - 8; // Posição Y da barra
+    
+    // PRIMEIRO: Desenhar barra laranja
+    ctx.fillStyle = '#FF8C00'; // Laranja R10
+    ctx.fillRect(x - barPadding, barY, textWidth + (barPadding * 2), barHeight);
+    
+    // DEPOIS: Desenhar texto CENTRALIZADO verticalmente na barra
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(line, x, y);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle'; // MIDDLE para centralizar verticalmente!
+    
+    // Posicionar texto no MEIO vertical da barra
+    const textY = barY + (barHeight / 2);
+    ctx.fillText(line, x, textY);
   });
   
-  const textBuffer = titleCanvas.toBuffer('image/png');
+  const textBuffer = textCanvas.toBuffer('image/png');
   
-  // 4. Compor todas as camadas
-  const layers = [{ input: resizedImage }];
+  // 4. Compor todas as camadas: imagem base + overlay + texto com barras
+  const layers = [];
   
   if (overlayBuffer) {
     layers.push({ input: overlayBuffer });
@@ -2651,11 +2710,11 @@ async function generateVideoCover({ imagePath, title }) {
   layers.push({ input: textBuffer });
   
   const finalBuffer = await sharp(resizedImage)
-    .composite(layers.slice(1))
+    .composite(layers)
     .png()
     .toBuffer();
   
-  console.log(`✅ Capa de vídeo gerada com sucesso`);
+  console.log(`✅ Capa de vídeo gerada: ${finalLines.length} linhas`);
   return finalBuffer;
 }
 
@@ -2664,7 +2723,7 @@ app.post('/api/generate-video-cover', upload.single('image'), async (req, res) =
   console.log('📥 POST /api/generate-video-cover');
   
   try {
-    const { title } = req.body;
+    const { title, positionX, positionY } = req.body;
     const imageFile = req.file;
     
     if (!imageFile) {
@@ -2677,11 +2736,14 @@ app.post('/api/generate-video-cover', upload.single('image'), async (req, res) =
     
     console.log(`📝 Título: "${title}"`);
     console.log(`🖼️ Imagem: ${imageFile.originalname}`);
+    console.log(`🎯 Posição: X=${positionX || 50}%, Y=${positionY || 50}%`);
     
     // Gerar capa de vídeo
     const coverBuffer = await generateVideoCover({
       imagePath: imageFile.path,
-      title: title.trim()
+      title: title.trim(),
+      positionX: parseInt(positionX) || 50,
+      positionY: parseInt(positionY) || 50
     });
     
     // Limpar arquivo temporário
